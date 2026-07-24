@@ -60,7 +60,7 @@ def test_slotIsEquipped_preserves_the_original_pixel_check(monkeypatch):
     assert core.slotIsEquipped(screenshot, 1) == True
 
 
-def test_getSlotCount_reads_digits_using_original_columns(monkeypatch):
+def test_getSlotCount_reads_normalized_digit_cells(monkeypatch):
     screenshot = np.zeros((40, 100), dtype=np.uint8)
     monkeypatch.setattr(
         core.actionBarLocators,
@@ -68,11 +68,28 @@ def test_getSlotCount_reads_digits_using_original_columns(monkeypatch):
         lambda _: LEFT_ARROWS_POSITION,
     )
     x = slotX(1)
-    for index, digit in enumerate((5, 4, 3)):
-        sampleX = (6 * (5 - index)) - 3
+    for power, digit in enumerate((5, 4, 3)):
+        right = x + 32 - (power * 6)
         digitImage = loadFromRGBToGray(
             f"src/repositories/actionBar/images/digits/{digit}.png"
         )
-        screenshot[26:30, x + 2 + sampleX:x + 3 + sampleX] = digitImage
+        screenshot[25:31, right - 6:right] = digitImage
 
     assert core.getSlotCount(screenshot, 1) == 345
+
+
+def test_getSlotCount_normalizes_grayscale_before_hashing(monkeypatch):
+    screenshot = np.zeros((40, 100), dtype=np.uint8)
+    monkeypatch.setattr(
+        core.actionBarLocators,
+        "getLeftArrowsPosition",
+        lambda _: LEFT_ARROWS_POSITION,
+    )
+    x = slotX(1)
+    digitImage = loadFromRGBToGray(
+        "src/repositories/actionBar/images/digits/8.png"
+    )
+    grayscaleDigit = np.where(digitImage == 255, 200, 100).astype(np.uint8)
+    screenshot[25:31, x + 26:x + 32] = grayscaleDigit
+
+    assert core.getSlotCount(screenshot, 1) == 8

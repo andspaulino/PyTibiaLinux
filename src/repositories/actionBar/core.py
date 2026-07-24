@@ -1,5 +1,8 @@
 import math
 from typing import Union
+
+import cv2
+
 import src.repositories.actionBar.extractors as actionBarExtractors
 import src.repositories.actionBar.locators as actionBarLocators
 from src.shared.typings import GrayImage
@@ -7,7 +10,6 @@ import src.utils.core as coreUtils
 from .config import hashes, images
 
 
-# TODO: add unit tests
 # PERF: [0.04209370000000012, 9.999999999621423e-06]
 def getSlotCount(screenshot: GrayImage, slot: int) -> Union[int, None]:
     leftSideArrowsPos = actionBarLocators.getLeftArrowsPosition(screenshot)
@@ -16,12 +18,15 @@ def getSlotCount(screenshot: GrayImage, slot: int) -> Union[int, None]:
     x0 = leftSideArrowsPos[0] + leftSideArrowsPos[2] + \
         (slot * 2) + ((slot - 1) * 34)
     slotImage = screenshot[leftSideArrowsPos[1]:leftSideArrowsPos[1] + 34, x0:x0 + 34]
-    digits = slotImage[24:32, 2:32]
     count = 0
     for i in range(5):
-        x = ((6 * (5 - i)) - 3)
+        right = 32 - (i * 6)
+        left = right - 6
+        digitImage = slotImage[25:31, left:right]
+        _, normalizedDigitImage = cv2.threshold(
+            digitImage, 150, 255, cv2.THRESH_BINARY)
         number = images['digits'].get(
-            coreUtils.hashit(digits[2:6, x:x + 1]), None)
+            coreUtils.hashit(normalizedDigitImage), None)
         if number is None:
             number = 0
             continue
