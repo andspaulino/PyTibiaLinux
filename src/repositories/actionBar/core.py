@@ -8,7 +8,7 @@ import src.repositories.actionBar.extractors as actionBarExtractors
 import src.repositories.actionBar.locators as actionBarLocators
 from src.shared.typings import GrayImage
 import src.utils.core as coreUtils
-from .config import hashes, images
+from .config import images
 
 
 exclusiveHealingCooldownNames = (
@@ -127,9 +127,11 @@ def hasAttackCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 4:24])
-    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
-    return hashName == 'attack'
+    attackImage = listOfCooldownsImage[0:20, 4:24]
+    if coreUtils.locate(
+            attackImage, images['cooldowns']['attack']) is None:
+        return False
+    return listOfCooldownsImage[20, 4] == 255
 
 
 # TODO: improve performance
@@ -180,9 +182,11 @@ def hasSupportCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 54:74])
-    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
-    return hashName == 'support'
+    supportImage = listOfCooldownsImage[0:20, 54:74]
+    if coreUtils.locate(
+            supportImage, images['cooldowns']['support']) is None:
+        return False
+    return listOfCooldownsImage[20, 54] == 255
 
 
 # TODO: improve performance

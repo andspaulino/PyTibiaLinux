@@ -80,12 +80,80 @@ def test_global_cooldown_hashes_are_recognized(monkeypatch):
     cooldowns[0:20, 4:24] = images["cooldowns"]["attack"]
     cooldowns[0:20, 29:49] = images["cooldowns"]["healing"]
     cooldowns[0:20, 54:74] = images["cooldowns"]["support"]
+    cooldowns[20, 4] = 255
     cooldowns[20, 29] = 255
+    cooldowns[20, 54] = 255
     monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
 
-    assert core.hasAttackCooldown(cooldowns) is True
+    assert core.hasAttackCooldown(cooldowns) == True
     assert core.hasHealingCooldown(cooldowns) == True
-    assert core.hasSupportCooldown(cooldowns) is True
+    assert core.hasSupportCooldown(cooldowns) == True
+
+
+def test_hasAttackCooldown_returns_none_without_cooldowns_region(monkeypatch):
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: None)
+
+    assert core.hasAttackCooldown(np.zeros((10, 10), dtype=np.uint8)) is None
+
+
+def test_hasAttackCooldown_accepts_dark_inactive_icon(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    template = images["cooldowns"]["attack"]
+    cooldowns[0:20, 4:24] = np.clip(template * 0.3, 0, 255).astype(np.uint8)
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasAttackCooldown(cooldowns) == False
+
+
+def test_hasAttackCooldown_reads_active_pixel_after_template_matching(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    cooldowns[0:20, 4:24] = images["cooldowns"]["attack"]
+    cooldowns[20, 4] = 255
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasAttackCooldown(cooldowns) == True
+
+
+def test_hasAttackCooldown_rejects_incorrect_icon(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    cooldowns[0:20, 4:24] = images["cooldowns"]["support"]
+    cooldowns[20, 4] = 255
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasAttackCooldown(cooldowns) is False
+
+
+def test_hasSupportCooldown_returns_none_without_cooldowns_region(monkeypatch):
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: None)
+
+    assert core.hasSupportCooldown(np.zeros((10, 10), dtype=np.uint8)) is None
+
+
+def test_hasSupportCooldown_accepts_dark_inactive_icon(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    template = images["cooldowns"]["support"]
+    cooldowns[0:20, 54:74] = np.clip(template * 0.3, 0, 255).astype(np.uint8)
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasSupportCooldown(cooldowns) == False
+
+
+def test_hasSupportCooldown_reads_active_pixel_after_template_matching(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    cooldowns[0:20, 54:74] = images["cooldowns"]["support"]
+    cooldowns[20, 54] = 255
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasSupportCooldown(cooldowns) == True
+
+
+def test_hasSupportCooldown_rejects_incorrect_icon(monkeypatch):
+    cooldowns = np.zeros((22, 80), dtype=np.uint8)
+    cooldowns[0:20, 54:74] = images["cooldowns"]["attack"]
+    cooldowns[20, 54] = 255
+    monkeypatch.setattr(core.actionBarExtractors, "getCooldownsImage", lambda _: cooldowns)
+
+    assert core.hasSupportCooldown(cooldowns) is False
 
 
 def test_hasHealingCooldown_returns_none_without_cooldowns_region(monkeypatch):
