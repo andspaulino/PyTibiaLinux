@@ -93,3 +93,57 @@ def test_getSlotCount_normalizes_grayscale_before_hashing(monkeypatch):
     screenshot[25:31, x + 26:x + 32] = grayscaleDigit
 
     assert core.getSlotCount(screenshot, 1) == 8
+
+
+def test_getSlotCount_accepts_two_background_pixels_with_safe_margin(monkeypatch):
+    screenshot = np.zeros((40, 100), dtype=np.uint8)
+    monkeypatch.setattr(
+        core.actionBarLocators,
+        "getLeftArrowsPosition",
+        lambda _: LEFT_ARROWS_POSITION,
+    )
+    x = slotX(1)
+    for power, digit in enumerate((1, 2, 3)):
+        right = x + 32 - (power * 6)
+        digitImage = loadFromRGBToGray(
+            f"src/repositories/actionBar/images/digits/{digit}.png"
+        ).copy()
+        if digit == 2:
+            digitImage[0, 5] = 255
+            digitImage[2, 0] = 255
+        screenshot[25:31, right - 6:right] = digitImage
+
+    assert core.getSlotCount(screenshot, 1) == 321
+
+
+def test_getSlotCount_rejects_more_than_two_different_pixels(monkeypatch):
+    screenshot = np.zeros((40, 100), dtype=np.uint8)
+    monkeypatch.setattr(
+        core.actionBarLocators,
+        "getLeftArrowsPosition",
+        lambda _: LEFT_ARROWS_POSITION,
+    )
+    x = slotX(1)
+    digitImage = loadFromRGBToGray(
+        "src/repositories/actionBar/images/digits/2.png"
+    ).copy()
+    digitImage[0, 0] = 255
+    digitImage[0, 4] = 255
+    digitImage[0, 5] = 255
+    screenshot[25:31, x + 26:x + 32] = digitImage
+
+    assert core.getSlotCount(screenshot, 1) == 0
+
+
+def test_getDigit_rejects_ambiguous_fallback(monkeypatch):
+    sample = np.zeros((6, 6), dtype=np.uint8)
+    closeTemplate = sample.copy()
+    closeTemplate[0, 0] = 255
+    monkeypatch.setitem(core.images, "digits", {})
+    monkeypatch.setitem(
+        core.images,
+        "digitTemplates",
+        {0: sample, 1: closeTemplate},
+    )
+
+    assert core.getDigit(sample) is None

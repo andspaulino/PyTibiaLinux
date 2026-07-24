@@ -8,6 +8,10 @@ imagesPath = f'{currentPath}/images'
 arrowsImagesPath = f'{imagesPath}/arrows'
 cooldownsImagesPath = f'{imagesPath}/cooldowns'
 digitsImagesPath = f'{imagesPath}/digits'
+digitTemplates = {
+    digit: loadFromRGBToGray(f'{digitsImagesPath}/{digit}.png')
+    for digit in range(10)
+}
 hashes = {
     'cooldowns': {
         hashit(loadFromRGBToGray(f'{cooldownsImagesPath}/attack.png')): 'attack',
@@ -55,15 +59,8 @@ images = {
         'utura gran': loadFromRGBToGray(f'{cooldownsImagesPath}/uturaGran.png'),
     },
     'digits': {
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/0.png')): 0,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/1.png')): 1,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/2.png')): 2,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/3.png')): 3,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/4.png')): 4,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/5.png')): 5,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/6.png')): 6,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/7.png')): 7,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/8.png')): 8,
-        hashit(loadFromRGBToGray(f'{digitsImagesPath}/9.png')): 9,
+        hashit(template): digit
+        for digit, template in digitTemplates.items()
     },
+    'digitTemplates': digitTemplates,
 }

@@ -2,12 +2,32 @@ import math
 from typing import Union
 
 import cv2
+import numpy as np
 
 import src.repositories.actionBar.extractors as actionBarExtractors
 import src.repositories.actionBar.locators as actionBarLocators
 from src.shared.typings import GrayImage
 import src.utils.core as coreUtils
 from .config import hashes, images
+
+
+def getDigit(normalizedDigitImage: GrayImage) -> Union[int, None]:
+    exactDigit = images['digits'].get(coreUtils.hashit(normalizedDigitImage))
+    if exactDigit is not None:
+        return exactDigit
+
+    candidates = sorted(
+        (
+            int(np.count_nonzero(normalizedDigitImage != template)),
+            digit,
+        )
+        for digit, template in images['digitTemplates'].items()
+    )
+    bestDistance, bestDigit = candidates[0]
+    secondBestDistance = candidates[1][0]
+    if bestDistance > 2 or secondBestDistance - bestDistance < 3:
+        return None
+    return bestDigit
 
 
 # PERF: [0.04209370000000012, 9.999999999621423e-06]
@@ -25,8 +45,7 @@ def getSlotCount(screenshot: GrayImage, slot: int) -> Union[int, None]:
         digitImage = slotImage[25:31, left:right]
         _, normalizedDigitImage = cv2.threshold(
             digitImage, 150, 255, cv2.THRESH_BINARY)
-        number = images['digits'].get(
-            coreUtils.hashit(normalizedDigitImage), None)
+        number = getDigit(normalizedDigitImage)
         if number is None:
             number = 0
             continue
