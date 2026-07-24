@@ -11,6 +11,15 @@ import src.utils.core as coreUtils
 from .config import hashes, images
 
 
+exclusiveHealingCooldownNames = (
+    'exura ico',
+    'exura med ico',
+    'exura gran ico',
+)
+exclusiveCooldownConfidence = 0.85
+exclusiveCooldownMargin = 0.05
+
+
 def getDigit(normalizedDigitImage: GrayImage) -> Union[int, None]:
     exactDigit = images['digits'].get(coreUtils.hashit(normalizedDigitImage))
     if exactDigit is not None:
@@ -65,9 +74,51 @@ def hasCooldownByImage(screenshot: GrayImage, cooldownImage: GrayImage) -> Union
     return listOfCooldownsImage[20:21, cooldownImagePosition[0]:cooldownImagePosition[0] + cooldownImagePosition[2]][0][0] == 255
 
 
-# TODO: add unit tests
+def hasExclusiveHealingCooldown(
+        screenshot: GrayImage, name: str) -> Union[bool, None]:
+    listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
+    if listOfCooldownsImage is None:
+        return None
+
+    template = images['cooldowns'][name]
+    match = cv2.matchTemplate(
+        listOfCooldownsImage, template, cv2.TM_CCOEFF_NORMED)
+    _, confidence, _, position = cv2.minMaxLoc(match)
+    if confidence <= exclusiveCooldownConfidence:
+        return False
+
+    x, y = position
+    candidateImage = listOfCooldownsImage[
+        y:y + template.shape[0], x:x + template.shape[1]]
+    candidates = sorted(
+        [
+            (
+                candidateName,
+                float(cv2.matchTemplate(
+                    candidateImage,
+                    images['cooldowns'][candidateName],
+                    cv2.TM_CCOEFF_NORMED,
+                )[0, 0]),
+            )
+            for candidateName in exclusiveHealingCooldownNames
+        ],
+        key=lambda candidate: candidate[1],
+        reverse=True,
+    )
+    bestName, bestConfidence = candidates[0]
+    secondBestConfidence = candidates[1][1]
+    if (
+        bestName != name
+        or bestConfidence - secondBestConfidence < exclusiveCooldownMargin
+    ):
+        return False
+    return listOfCooldownsImage[20, x] == 255
+
+
 # PERF: [0.08509680000000008, 0.00037780000000031677]
 def hasCooldownByName(screenshot: GrayImage, name: str) -> Union[bool, None]:
+    if name in exclusiveHealingCooldownNames:
+        return hasExclusiveHealingCooldown(screenshot, name)
     return hasCooldownByImage(screenshot, images['cooldowns'][name])
 
 
@@ -117,9 +168,11 @@ def hasHealingCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 29:49])
-    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
-    return hashName == 'healing'
+    healingImage = listOfCooldownsImage[0:20, 29:49]
+    if coreUtils.locate(
+            healingImage, images['cooldowns']['healing']) is None:
+        return False
+    return listOfCooldownsImage[20, 29] == 255
 
 
 # PERF: [2.0099999999523277e-05, 5.50000000032469e-06]
