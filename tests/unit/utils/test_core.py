@@ -68,7 +68,7 @@ def test_getCamera_reuses_the_same_capture_instance(monkeypatch):
         createdCameras.append(fakeCamera)
         return fakeCamera
 
-    monkeypatch.setattr(core, "mss", createCamera)
+    monkeypatch.setattr(core, "MSS", createCamera)
 
     assert core.getCamera() is fakeCamera
     assert core.getCamera() is fakeCamera

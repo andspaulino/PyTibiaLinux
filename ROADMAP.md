@@ -23,7 +23,7 @@ Este documento acompanha a adaptação do PyTibia para Linux. Ele deve ser atual
 
 ### 1. Captura de tela e escala de cinza
 
-**Estado:** 🚧 Em andamento
+**Estado:** ✅ Concluído
 
 **Objetivo:** replicar no Linux a abordagem de captura de tela de baixa latência realizada pelo `dxcam` e preservar a saída em escala de cinza consumida pelo pipeline de visão computacional.
 
@@ -134,7 +134,9 @@ Implementado em `src/utils/core.py`:
 
 Foram copiados fisicamente apenas os arquivos necessários da arquitetura original para `PyTibia-Linux/`, sem dependência de runtime em `PyTibia/`.
 
-Testes unitários foram adicionados para conversão, monitor primário, fallback e reutilização da instância. A execução está bloqueada porque o sistema possui Python 3.12.3 e o projeto preserva o requisito exato Python 3.11.7, ainda indisponível.
+Testes unitários foram adicionados para conversão, monitor primário, fallback e reutilização da instância.
+
+O Python 3.11.7 foi disponibilizado pelo usuário via `uv`, e o Poetry criou um ambiente virtual usando exatamente essa versão. A classe pública `mss.MSS` é usada para evitar a API `mss.mss`, depreciada na versão 10.2.0.
 
 #### Etapa 1.3 — Definir o contrato de captura
 
@@ -192,6 +194,22 @@ Medir e registrar:
 - consumo aproximado de CPU e memória;
 - ocorrência de frames repetidos, nulos ou corrompidos.
 
+##### Resultados da validação inicial
+
+Ambiente: X11, monitor primário 1920 × 1080 a 144 Hz, 200 frames consecutivos.
+
+| Medição | Média | Mediana | p95 | p99 |
+|---|---:|---:|---:|---:|
+| Captura MSS | 6,874 ms | 7,446 ms | 10,421 ms | 11,153 ms |
+| Conversão grayscale | 0,150 ms | 0,138 ms | 0,174 ms | 0,295 ms |
+| Total | 7,024 ms | 7,583 ms | 10,556 ms | 11,448 ms |
+
+Throughput calculado: **142,4 FPS**.
+
+O resultado é adequado ao loop original, cujo período alvo é aproximadamente 45 ms (~22 ciclos/s). A captura de integração retornou `numpy.ndarray` 2D, shape `(1080, 1920)`, dtype `uint8`, memória C-contígua e valores válidos na faixa grayscale.
+
+Os quatro testes unitários passaram. Há sete avisos de depreciação originados no `nptyping 2.5.0` ao usar aliases antigos do NumPy; eles já decorrem das versões preservadas do projeto original e não afetam a captura.
+
 #### Critérios de conclusão
 
 - [x] ambiente Linux alvo documentado;
@@ -201,10 +219,10 @@ Medir e registrar:
 - [x] adaptador implementado sem dependência de runtime em `PyTibia/`;
 - [x] `getScreenshot()` implementado para retornar `ndarray` grayscale compatível;
 - [x] fallback do último frame válido preservado;
-- [ ] testes unitários da conversão e do fallback aprovados;
-- [ ] teste de integração no ambiente gráfico alvo aprovado;
-- [ ] benchmark registrado e adequado ao loop em tempo real;
-- [ ] diferenças inevitáveis em relação ao `dxcam` documentadas.
+- [x] testes unitários da conversão e do fallback aprovados;
+- [x] teste de integração no ambiente gráfico alvo aprovado;
+- [x] benchmark registrado e adequado ao loop em tempo real;
+- [x] diferenças inevitáveis em relação ao `dxcam` documentadas.
 
 ## Backlog futuro
 
@@ -212,5 +230,5 @@ Os próximos marcos serão definidos incrementalmente após a estabilização da
 
 | Ordem | Marco | Estado | Observação |
 |---:|---|---|---|
-| 1 | Captura de tela e escala de cinza | 🚧 | MSS implementado; testes e benchmark bloqueados até Python 3.11.7 estar disponível |
+| 1 | Captura de tela e escala de cinza | ✅ | MSS validado em X11: 4 testes aprovados e 142,4 FPS no benchmark inicial |
 | 2 | A definir | ⬜ | Será detalhado posteriormente |

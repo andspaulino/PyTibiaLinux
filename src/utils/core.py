@@ -1,5 +1,5 @@
 import cv2
-from mss import mss
+from mss import MSS
 from farmhash import FarmHash64
 import numpy as np
 from typing import Callable, Union
@@ -13,7 +13,7 @@ latestScreenshot = None
 def getCamera():
     global camera
     if camera is None:
-        camera = mss()
+        camera = MSS()
     return camera
 
 
