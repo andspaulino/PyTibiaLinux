@@ -17,6 +17,8 @@ def healingBySpells(context: Context):
         else:
             tasksOrchestrator.do(context)
             return
+    if context['statusBar']['hpPercentage'] is None or context['statusBar']['mana'] is None:
+        return
     if context['healing']['spells']['criticalHealing']['enabled']:
         if context['statusBar']['hpPercentage'] <= context['healing']['spells']['criticalHealing']['hpPercentageLessThanOrEqual'] and context['statusBar']['mana'] >= spells[context['healing']['spells']['criticalHealing']['spell']]['manaNeeded'] and not hasCooldownByName(context['screenshot'], context['healing']['spells']['criticalHealing']['spell']):
             tasksOrchestrator.setRootTask(

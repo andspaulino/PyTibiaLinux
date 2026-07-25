@@ -15,6 +15,7 @@ opencv-python = "^4.6.0.66"
 pillow = "^9.1.1"
 numba = "^0.58.1"
 pyautogui = "^0.9.53"
+tinydb = "^4.8.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.1.3"

@@ -123,3 +123,24 @@ def test_healingByPotions_does_not_schedule_unavailable_slot(monkeypatch):
     observer.healingByPotions(context)
 
     assert orchestrator.rootTask is None
+
+
+def test_healingByPotions_resolves_slot_from_hotkey(monkeypatch):
+    context = makeContext()
+    context["healing"]["potions"]["firstHealthPotion"]["enabled"] = True
+    context["healing"]["potions"]["firstHealthPotion"]["hotkey"] = "3"
+    orchestrator = FakeOrchestrator()
+    checkedSlots = []
+    monkeypatch.setattr(observer, "tasksOrchestrator", orchestrator)
+    monkeypatch.setattr(observer, "matchHpHealing", lambda *_: True)
+    monkeypatch.setattr(
+        observer,
+        "slotIsAvailable",
+        lambda _, slot: checkedSlots.append(slot) or True,
+    )
+
+    observer.healingByPotions(context)
+
+    assert checkedSlots == [3]
+    assert orchestrator.rootTask.hotkey == "3"
+

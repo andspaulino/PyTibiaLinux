@@ -1,0 +1,41 @@
+{
+  "_default": {
+    "1": {
+      "enabled": true,
+      "config": {
+        "backpacks": { "main": "Fur Backpack", "loot": "Beach Backpack" },
+        "healing": {
+          "potions": {
+            "firstHealthPotion": {
+              "enabled": true,
+              "hotkey": "3",
+              "hpPercentageLessThanOrEqual": 40,
+              "manaPercentageGreaterThanOrEqual": 0
+            },
+            "firstManaPotion": {
+              "enabled": true,
+              "hotkey": "2",
+              "manaPercentageLessThanOrEqual": 40
+            }
+          },
+          "spells": {
+            "criticalHealing": {
+              "enabled": true,
+              "hotkey": "5",
+              "hpPercentageLessThanOrEqual": 60,
+              "manaPercentageGreaterThanOrEqual": 20,
+              "spell": "exura med ico"
+            },
+            "lightHealing": {
+              "enabled": true,
+              "hotkey": "1",
+              "hpPercentageLessThanOrEqual": 80,
+              "manaPercentageGreaterThanOrEqual": 20,
+              "spell": "exura ico"
+            }
+          }
+        }
+      }
+    }
+  }
+}

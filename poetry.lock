@@ -713,7 +713,19 @@ files = [
     {file = "rubicon_objc-0.5.6.tar.gz", hash = "sha256:0d3b0a9889f72916c095a58e7e1c275c260cb8a86b8ef8b909e60cb002fd54d5"},
 ]
 
+[[package]]
+name = "tinydb"
+version = "4.8.2"
+description = "TinyDB is a tiny, document oriented database optimized for your happiness :)"
+optional = false
+python-versions = "<4.0,>=3.8"
+groups = ["main"]
+files = [
+    {file = "tinydb-4.8.2-py3-none-any.whl", hash = "sha256:f97030ee5cbc91eeadd1d7af07ab0e48ceb04aa63d4a983adbaca4cba16e86c3"},
+    {file = "tinydb-4.8.2.tar.gz", hash = "sha256:f7dfc39b8d7fda7a1ca62a8dbb449ffd340a117c1206b68c50b1a481fb95181d"},
+]
+
 [metadata]
 lock-version = "2.1"
 python-versions = "3.11.7"
-content-hash = "cf2be2edeedf01a49040e1c1f50e85286218985fefb64908881967e5deebd619"
+content-hash = "8e2d12206163ddfe5e32699117bfb2454c618ff92520b3b3eb4a9527938bc9ea"

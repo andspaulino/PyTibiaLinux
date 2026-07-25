@@ -20,6 +20,8 @@ def eatFood(context: Context):
     if not context['healing']['eatFood']['enabled']:
         return
     food = getFood(context['screenshot'])
+    if food is None:
+        return
     if food > context['healing']['eatFood']['eatWhenFoodIslessOrEqual']:
         return
     tasksOrchestrator.setRootTask(

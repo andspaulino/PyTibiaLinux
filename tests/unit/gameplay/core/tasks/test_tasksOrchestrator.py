@@ -122,3 +122,12 @@ def test_orchestrator_runs_vector_children_in_order():
     orchestrator.do({})
     assert secondTask.status == "completed"
     assert vector.status == "completed"
+
+
+def test_orchestrator_do_with_no_root_task_is_safe():
+    orchestrator = TasksOrchestrator()
+    assert orchestrator.rootTask is None
+    context = {"some": "data"}
+    result = orchestrator.do(context)
+    assert result == context
+
