@@ -83,13 +83,7 @@ floorsPathsImgs = [
     loadFromRGBToGray(
         f'{currentPath}/images/paths/floor-15.png'),
 ]
-npyPath = currentPath / 'npys' / 'floorsPathsSqms.npy'
-if npyPath.exists():
-    floorsPathsSqms = np.load(str(npyPath))
-else:
-    floorsPathsSqms = np.array(floorsPathsImgs, dtype=np.uint8)
-    npyPath.parent.mkdir(parents=True, exist_ok=True)
-    np.save(str(npyPath), floorsPathsSqms)
+floorsPathsSqms = np.load(f'{currentPath}/npys/floorsPathsSqms.npy')
 images = {
     'tools': loadFromRGBToGray(f'{currentPath}/images/buttons/radarTools.png')
 }

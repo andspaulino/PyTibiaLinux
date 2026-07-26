@@ -18,8 +18,6 @@ def swapRing(context: Context):
             return
     if context['healing']['highPriority']['swapRing']['enabled'] == False:
         return
-    if context['statusBar']['hpPercentage'] is None:
-        return
     tankRingSlotIsEquipped = slotIsEquipped(context['screenshot'], 21)
     tankRingSlotIsAvailable = slotIsAvailable(context['screenshot'], 21)
     if context['statusBar']['hpPercentage'] <= context['healing']['highPriority']['swapRing']['tankRing']['hpPercentageLessThanOrEqual']:

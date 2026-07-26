@@ -29,21 +29,10 @@ resolutions = {
         'slotWidth': 64,
     },
 }
-
-# Index monster image files on disk by lowercased filename to overcome Linux ext4 case-sensitivity
-monstersPath = currentPath / 'images' / 'monsters'
-monsterFilesOnDisk = {
-    f.name.lower(): f
-    for f in monstersPath.iterdir()
-    if f.is_file()
-}
 creaturesNamesHashes = {}
 for creature in wikiCreatures:
-    fileName = f"{creature}.png"
-    targetPath = monsterFilesOnDisk.get(fileName.lower())
-    if targetPath is None:
-        continue
-    creaturesNamesHashes[creature] = loadFromRGBToGray(str(targetPath))
+    creaturesNamesHashes[creature] = loadFromRGBToGray(
+        f'{currentPath}/images/monsters/{creature}.png')
 
 
 # TODO: add unit tests
@@ -148,8 +137,6 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if nonCreaturesForCurrentBar.get(creatureName, None) is not None:
                 continue
             creatureNameImg = creaturesNamesHashes.get(creatureName)
-            if creatureNameImg is None:
-                continue
             (creatureBarX,
              creatureBarY) = creaturesBars[creatureBarSortedIndex]
             creatureBarY0 = creatureBarY - 13

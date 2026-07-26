@@ -1,44 +1,32 @@
-from src.utils import keyboard
+from src.utils.keyboard import hotkey, keyDown, keyUp, press, write
 
 
-def test_keyboard_functions_delegate_to_pyautogui_without_real_input(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        keyboard.pyautogui,
-        "hotkey",
-        lambda *keys: calls.append(("hotkey", keys)),
-    )
-    monkeypatch.setattr(
-        keyboard.pyautogui,
-        "keyDown",
-        lambda key: calls.append(("keyDown", key)),
-    )
-    monkeypatch.setattr(
-        keyboard.pyautogui,
-        "keyUp",
-        lambda key: calls.append(("keyUp", key)),
-    )
-    monkeypatch.setattr(
-        keyboard.pyautogui,
-        "press",
-        lambda *keys: calls.append(("press", keys)),
-    )
-    monkeypatch.setattr(
-        keyboard.pyautogui,
-        "write",
-        lambda phrase: calls.append(("write", phrase)),
-    )
+def test_should_call_hotkey(mocker):
+    hotkeys = ['a', 'b']
+    hotkeySpy =  mocker.patch('pyautogui.hotkey')
+    hotkey(hotkeys)
+    hotkeySpy.assert_called_once_with(hotkeys)
 
-    keyboard.hotkey("ctrl", "a")
-    keyboard.keyDown("shift")
-    keyboard.keyUp("shift")
-    keyboard.press("f1")
-    keyboard.write("test")
+def test_should_call_keyDown(mocker):
+    hotkey = 'a'
+    keyDownSpy =  mocker.patch('pyautogui.keyDown')
+    keyDown(hotkey)
+    keyDownSpy.assert_called_once_with(hotkey)
 
-    assert calls == [
-        ("hotkey", ("ctrl", "a")),
-        ("keyDown", "shift"),
-        ("keyUp", "shift"),
-        ("press", ("f1",)),
-        ("write", "test"),
-    ]
+def test_should_call_keyUp(mocker):
+    hotkey = 'a'
+    keyUpSpy =  mocker.patch('pyautogui.keyUp')
+    keyUp(hotkey)
+    keyUpSpy.assert_called_once_with(hotkey)
+
+def test_should_call_hotkey(mocker):
+    hotkeys = ['a', 'b']
+    pressSpy =  mocker.patch('pyautogui.press')
+    press(hotkeys)
+    pressSpy.assert_called_once_with(hotkeys)
+
+def test_should_call_write(mocker):
+    phrase = 'hello world!'
+    writeSpy =  mocker.patch('pyautogui.write')
+    write(phrase)
+    writeSpy.assert_called_once_with(phrase)

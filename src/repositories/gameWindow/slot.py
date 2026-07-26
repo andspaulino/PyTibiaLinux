@@ -33,3 +33,4 @@ def clickSlot(slot: Slot, gameWindowPosition: BBox):
 def rightClickSlot(slot: Slot, gameWindowPosition: BBox):
     moveToSlot(slot, gameWindowPosition)
     rightClick()
+

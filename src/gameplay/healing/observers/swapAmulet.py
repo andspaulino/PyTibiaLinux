@@ -18,8 +18,6 @@ def swapAmulet(context: Context):
             return
     if context['healing']['highPriority']['swapAmulet']['enabled'] == False:
         return
-    if context['statusBar']['hpPercentage'] is None:
-        return
     tankAmuletSlotIsEquipped = slotIsEquipped(context['screenshot'], 23)
     tankAmuletSlotIsAvailable = slotIsAvailable(context['screenshot'], 23)
     if context['statusBar']['hpPercentage'] <= context['healing']['highPriority']['swapAmulet']['tankAmulet']['hpPercentageLessThanOrEqual']:

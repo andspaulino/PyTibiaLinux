@@ -1,44 +1,13 @@
 import math
 from typing import Union
-
-import cv2
-import numpy as np
-
 import src.repositories.actionBar.extractors as actionBarExtractors
 import src.repositories.actionBar.locators as actionBarLocators
 from src.shared.typings import GrayImage
 import src.utils.core as coreUtils
-from .config import images
+from .config import hashes, images
 
 
-exclusiveHealingCooldownNames = (
-    'exura ico',
-    'exura med ico',
-    'exura gran ico',
-)
-exclusiveCooldownConfidence = 0.85
-exclusiveCooldownMargin = 0.05
-
-
-def getDigit(normalizedDigitImage: GrayImage) -> Union[int, None]:
-    exactDigit = images['digits'].get(coreUtils.hashit(normalizedDigitImage))
-    if exactDigit is not None:
-        return exactDigit
-
-    candidates = sorted(
-        (
-            int(np.count_nonzero(normalizedDigitImage != template)),
-            digit,
-        )
-        for digit, template in images['digitTemplates'].items()
-    )
-    bestDistance, bestDigit = candidates[0]
-    secondBestDistance = candidates[1][0]
-    if bestDistance > 2 or secondBestDistance - bestDistance < 3:
-        return None
-    return bestDigit
-
-
+# TODO: add unit tests
 # PERF: [0.04209370000000012, 9.999999999621423e-06]
 def getSlotCount(screenshot: GrayImage, slot: int) -> Union[int, None]:
     leftSideArrowsPos = actionBarLocators.getLeftArrowsPosition(screenshot)
@@ -47,14 +16,12 @@ def getSlotCount(screenshot: GrayImage, slot: int) -> Union[int, None]:
     x0 = leftSideArrowsPos[0] + leftSideArrowsPos[2] + \
         (slot * 2) + ((slot - 1) * 34)
     slotImage = screenshot[leftSideArrowsPos[1]:leftSideArrowsPos[1] + 34, x0:x0 + 34]
+    digits = slotImage[24:32, 2:32]
     count = 0
     for i in range(5):
-        right = 32 - (i * 6)
-        left = right - 6
-        digitImage = slotImage[25:31, left:right]
-        _, normalizedDigitImage = cv2.threshold(
-            digitImage, 150, 255, cv2.THRESH_BINARY)
-        number = getDigit(normalizedDigitImage)
+        x = ((6 * (5 - i)) - 3)
+        number = images['digits'].get(
+            coreUtils.hashit(digits[2:6, x:x + 1]), None)
         if number is None:
             number = 0
             continue
@@ -74,51 +41,9 @@ def hasCooldownByImage(screenshot: GrayImage, cooldownImage: GrayImage) -> Union
     return listOfCooldownsImage[20:21, cooldownImagePosition[0]:cooldownImagePosition[0] + cooldownImagePosition[2]][0][0] == 255
 
 
-def hasExclusiveHealingCooldown(
-        screenshot: GrayImage, name: str) -> Union[bool, None]:
-    listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
-    if listOfCooldownsImage is None:
-        return None
-
-    template = images['cooldowns'][name]
-    match = cv2.matchTemplate(
-        listOfCooldownsImage, template, cv2.TM_CCOEFF_NORMED)
-    _, confidence, _, position = cv2.minMaxLoc(match)
-    if confidence <= exclusiveCooldownConfidence:
-        return False
-
-    x, y = position
-    candidateImage = listOfCooldownsImage[
-        y:y + template.shape[0], x:x + template.shape[1]]
-    candidates = sorted(
-        [
-            (
-                candidateName,
-                float(cv2.matchTemplate(
-                    candidateImage,
-                    images['cooldowns'][candidateName],
-                    cv2.TM_CCOEFF_NORMED,
-                )[0, 0]),
-            )
-            for candidateName in exclusiveHealingCooldownNames
-        ],
-        key=lambda candidate: candidate[1],
-        reverse=True,
-    )
-    bestName, bestConfidence = candidates[0]
-    secondBestConfidence = candidates[1][1]
-    if (
-        bestName != name
-        or bestConfidence - secondBestConfidence < exclusiveCooldownMargin
-    ):
-        return False
-    return listOfCooldownsImage[20, x] == 255
-
-
+# TODO: add unit tests
 # PERF: [0.08509680000000008, 0.00037780000000031677]
 def hasCooldownByName(screenshot: GrayImage, name: str) -> Union[bool, None]:
-    if name in exclusiveHealingCooldownNames:
-        return hasExclusiveHealingCooldown(screenshot, name)
     return hasCooldownByImage(screenshot, images['cooldowns'][name])
 
 
@@ -127,11 +52,9 @@ def hasAttackCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    attackImage = listOfCooldownsImage[0:20, 4:24]
-    if coreUtils.locate(
-            attackImage, images['cooldowns']['attack']) is None:
-        return False
-    return listOfCooldownsImage[20, 4] == 255
+    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 4:24])
+    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
+    return hashName == 'attack'
 
 
 # TODO: improve performance
@@ -170,11 +93,9 @@ def hasHealingCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    healingImage = listOfCooldownsImage[0:20, 29:49]
-    if coreUtils.locate(
-            healingImage, images['cooldowns']['healing']) is None:
-        return False
-    return listOfCooldownsImage[20, 29] == 255
+    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 29:49])
+    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
+    return hashName == 'healing'
 
 
 # PERF: [2.0099999999523277e-05, 5.50000000032469e-06]
@@ -182,11 +103,9 @@ def hasSupportCooldown(screenshot: GrayImage) -> Union[bool, None]:
     listOfCooldownsImage = actionBarExtractors.getCooldownsImage(screenshot)
     if listOfCooldownsImage is None:
         return None
-    supportImage = listOfCooldownsImage[0:20, 54:74]
-    if coreUtils.locate(
-            supportImage, images['cooldowns']['support']) is None:
-        return False
-    return listOfCooldownsImage[20, 54] == 255
+    cooldownImageHash = coreUtils.hashit(listOfCooldownsImage[0:20, 54:74])
+    hashName = hashes['cooldowns'].get(cooldownImageHash, 'unknown')
+    return hashName == 'support'
 
 
 # TODO: improve performance

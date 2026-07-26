@@ -52,8 +52,6 @@ class TasksOrchestrator:
     # TODO: add unit tests
     def do(self, context: Context) -> Context:
         currentTask = self.getCurrentTask(context)
-        if currentTask is None:
-            return context
         self.checkHooks(currentTask, context)
         return self.handleTasks(context)
 
