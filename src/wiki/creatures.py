@@ -1285,5 +1285,9 @@ creatures = {
     'Zorvorax': {'exp': 9000, 'hp': 10000},
     'Zugurosh': {'exp': 10000, 'hp': 90500},
     'Zulazza The Corruptor': {'exp': 10000, 'hp': 46500},
-    'Zushuka': {'exp': 9000, 'hp': 15000, 'gameWindowMisalignment': {'x': 16, 'y': 16}}
+    'Zushuka': {'exp': 9000, 'hp': 15000, 'gameWindowMisalignment': {'x': 16, 'y': 16}},
+    'Lizard Henchman': {'exp': 70, 'hp': 58, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Swordmaster': {'exp': 80, 'hp': 68, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Magician': {'exp': 75, 'hp': 62, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Executioner': {'exp': 90, 'hp': 74, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
 }
