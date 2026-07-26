@@ -8,10 +8,11 @@ from ..utils.potions import matchHpHealing, matchManaHealing
 tasksOrchestrator = TasksOrchestrator()
 
 
-def getSlot(hotkey: str, defaultSlot: int) -> int:
-    if hotkey and hotkey.isdigit():
-        return int(hotkey)
-    return defaultSlot
+def _get_slot(hotkey_str: str, default_slot: int) -> int:
+    try:
+        return int(hotkey_str)
+    except (ValueError, TypeError):
+        return default_slot
 
 
 # TODO: add unit tests
@@ -25,14 +26,14 @@ def healingByPotions(context: Context):
             return
     if context['healing']['potions']['firstHealthPotion']['enabled']:
         hp_hotkey = context['healing']['potions']['firstHealthPotion']['hotkey']
-        hp_slot = getSlot(hp_hotkey, 1)
+        hp_slot = _get_slot(hp_hotkey, 1)
         if matchHpHealing(context['healing']['potions']['firstHealthPotion'], context['statusBar']) and slotIsAvailable(context['screenshot'], hp_slot):
             tasksOrchestrator.setRootTask(context, UseHotkeyTask(
                 hp_hotkey, delayAfterComplete=1))
             return
     if context['healing']['potions']['firstManaPotion']['enabled']:
         mana_hotkey = context['healing']['potions']['firstManaPotion']['hotkey']
-        mana_slot = getSlot(mana_hotkey, 2)
+        mana_slot = _get_slot(mana_hotkey, 2)
         if matchManaHealing(context['healing']['potions']['firstManaPotion'], context['statusBar']) and slotIsAvailable(context['screenshot'], mana_slot):
             tasksOrchestrator.setRootTask(context, UseHotkeyTask(
                 mana_hotkey, delayAfterComplete=1))

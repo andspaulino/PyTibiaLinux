@@ -27,22 +27,23 @@ images = {
         'yellow': loadFromRGBToGray(f'{skullsPath}/yellow.png'),
     }
 }
-
-# Index monster image files on disk by lowercased filename to overcome Linux ext4 case-sensitivity
-monsterFilesOnDisk = {
-    f.name.lower(): f
-    for f in pathlib.Path(monstersPath).iterdir()
-    if f.is_file()
-}
-
 creaturesNamesImagesHashes = {}
 
+def get_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
+    exact = folder / f'{name}.png'
+    if exact.exists():
+        return exact
+    name_lower = f'{name}.png'.lower()
+    for item in folder.iterdir():
+        if item.name.lower() == name_lower:
+            return item
+    return None
+
+monsters_folder = pathlib.Path(monstersPath)
 for creatureName in creatures:
-    fileName = f"{creatureName}.png"
-    targetPath = monsterFilesOnDisk.get(fileName.lower())
-    if targetPath is None:
-        continue
-    creatureNameImage = loadFromRGBToGray(str(targetPath))
-    creatureNameImage = np.ravel(creatureNameImage[8:9, 0:115])
-    creatureNameImageHash = hashit(creatureNameImage)
-    creaturesNamesImagesHashes[creatureNameImageHash] = creatureName
+    img_path = get_monster_image_path(monsters_folder, creatureName)
+    if img_path is not None:
+        creatureNameImage = loadFromRGBToGray(str(img_path))
+        creatureNameImage = np.ravel(creatureNameImage[8:9, 0:115])
+        creatureNameImageHash = hashit(creatureNameImage)
+        creaturesNamesImagesHashes[creatureNameImageHash] = creatureName
