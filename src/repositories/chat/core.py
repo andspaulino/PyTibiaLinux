@@ -27,6 +27,11 @@ def getTabs(screenshot: GrayImage):
     tabs = {}
     leftSidebarArrowsPosition = getLeftArrowPosition(screenshot)
     chatMenuPosition = getChatMenuPosition(screenshot)
+    if leftSidebarArrowsPosition is None or chatMenuPosition is None:
+        return {}
+    # Código original:
+    # x, y, width, height = leftSidebarArrowsPosition[0] + 18, chatMenuPosition[1], chatMenuPosition[0] - (
+    #     leftSidebarArrowsPosition[0] + 18), 20
     x, y, width, height = leftSidebarArrowsPosition[0] + 18, chatMenuPosition[1], chatMenuPosition[0] - (
         leftSidebarArrowsPosition[0] + 18), 20
     chatsTabsContainerImage = screenshot[y:y + height, x:x + width]
@@ -73,7 +78,12 @@ def hasNewLoot(screenshot: GrayImage) -> bool:
 # TODO: add unit tests
 # TODO: add perf
 def getLootLines(screenshot: GrayImage) -> GrayImage:
-    (x, y, w, h) = getChatMessagesContainerPosition(screenshot)
+    chatContainerPos = getChatMessagesContainerPosition(screenshot)
+    if chatContainerPos is None:
+        return []
+    # Código original:
+    # (x, y, w, h) = getChatMessagesContainerPosition(screenshot)
+    (x, y, w, h) = chatContainerPos
     messages = screenshot[y: y + h, x: x + w]
     lootLines = locateMultiple(lootOfTextImg, messages)
     linesWithLoot = []
@@ -119,4 +129,8 @@ def getChatMessagesContainerPosition(screenshot: GrayImage) -> BBox:
     leftSidebarArrows = getLeftArrowPosition(screenshot)
     chatMenu = getChatMenuPosition(screenshot)
     chatStatus = getChatStatus(screenshot)
+    if leftSidebarArrows is None or chatMenu is None or chatStatus[0] is None:
+        return None
+    # Código original:
+    # return leftSidebarArrows[0] + 5, chatMenu[1] + 18, chatStatus[0][0] + 40, (chatStatus[0][1] - 6) - (chatMenu[1] + 13)
     return leftSidebarArrows[0] + 5, chatMenu[1] + 18, chatStatus[0][0] + 40, (chatStatus[0][1] - 6) - (chatMenu[1] + 13)

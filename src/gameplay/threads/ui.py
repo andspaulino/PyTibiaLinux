@@ -1,5 +1,5 @@
 from threading import Thread
-from src.ui.application import Application
+# from src.ui.application import Application
 
 
 class UIThread(Thread):
@@ -9,5 +9,6 @@ class UIThread(Thread):
         self.context = context
 
     def run(self):
-        app = Application(self.context)
-        app.mainloop()
+        # app = Application(self.context)
+        # app.mainloop()
+        pass

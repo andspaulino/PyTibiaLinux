@@ -111,6 +111,12 @@ def getSlotFromCoordinate(currentCoordinate: Coordinate, coordinate: Coordinate)
 # TODO: add unit tests
 # TODO: add perf
 def getSlotImage(gameWindowImage: GrayImage, slot: Tuple[int, int], slotWidth: int) -> GrayImage:
+    if gameWindowImage is None or slot is None:
+        return None
+    # Código original:
+    # x = slot[0] * slotWidth
+    # y = slot[1] * slotWidth
+    # return gameWindowImage[y:y + slotWidth, x:x + slotWidth]
     x = slot[0] * slotWidth
     y = slot[1] * slotWidth
     return gameWindowImage[y:y + slotWidth, x:x + slotWidth]
@@ -119,8 +125,16 @@ def getSlotImage(gameWindowImage: GrayImage, slot: Tuple[int, int], slotWidth: i
 # TODO: add unit tests
 # TODO: add perf
 def isHoleOpen(gameWindowImage: GrayImage, holeOpenImage: GrayImage, coordinate: Coordinate, targetCoordinate: Coordinate) -> bool:
-    # TODO: export from config
-    slotWidth = len(gameWindowImage[1]) // 15
+    if gameWindowImage is None or coordinate is None or targetCoordinate is None:
+        return False
     slot = getSlotFromCoordinate(coordinate, targetCoordinate)
+    if slot is None:
+        return False
+    # Código original:
+    # slotWidth = len(gameWindowImage[1]) // 15
+    # slot = getSlotFromCoordinate(coordinate, targetCoordinate)
+    # slotImage = getSlotImage(gameWindowImage, slot, slotWidth)
+    # return locate(slotImage, holeOpenImage) is not None
+    slotWidth = len(gameWindowImage[1]) // 15
     slotImage = getSlotImage(gameWindowImage, slot, slotWidth)
     return locate(slotImage, holeOpenImage) is not None

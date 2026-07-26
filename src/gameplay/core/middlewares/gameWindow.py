@@ -10,6 +10,8 @@ from ..tasks.selectChatTab import SelectChatTabTask
 
 # TODO: add unit tests
 def setDirectionMiddleware(context: Context) -> Context:
+    if context['radar']['coordinate'] is None:
+        return context
     if context['radar']['previousCoordinate'] is None:
         context['radar']['previousCoordinate'] = context['radar']['coordinate']
     if context['radar']['coordinate'][0] != context['radar']['previousCoordinate'][0] or context['radar']['coordinate'][1] != context['radar']['previousCoordinate'][1] or context['radar']['coordinate'][2] != context['radar']['previousCoordinate'][2]:
@@ -67,6 +69,10 @@ def setHandleLootMiddleware(context: Context) -> Context:
 def setGameWindowMiddleware(context: Context) -> Context:
     context['gameWindow']['coordinate'] = getCoordinate(
         context['screenshot'], gameWindowSizes[context['resolution']])
+    if context['gameWindow']['coordinate'] is None:
+        context['gameWindow']['image'] = None
+        return context
+    # Código original:
     context['gameWindow']['image'] = getImageByCoordinate(
         context['screenshot'], context['gameWindow']['coordinate'], gameWindowSizes[context['resolution']])
     return context
@@ -74,6 +80,12 @@ def setGameWindowMiddleware(context: Context) -> Context:
 
 # TODO: add unit tests
 def setGameWindowCreaturesMiddleware(context: Context) -> Context:
+    if context['gameWindow']['coordinate'] is None or context['radar']['coordinate'] is None or context['gameWindow']['image'] is None:
+        context['gameWindow']['creatures'] = []
+        context['gameWindow']['monsters'] = []
+        context['gameWindow']['players'] = []
+        return context
+    # Código original:
     context['battleList']['beingAttackedCreatureCategory'] = getBeingAttackedCreatureCategory(
         context['battleList']['creatures'])
     context['gameWindow']['creatures'] = getCreatures(

@@ -31,9 +31,24 @@ class PyTibiaThread:
         self.context = context
 
     def mainloop(self):
+        # Seleção automática de janela no Linux (Modo CLI sem UI)
+        if self.context.context.get('window') is None:
+            from src.utils.window import get_tibia_windows
+            windows = get_tibia_windows()
+            if windows:
+                self.context.context['window'] = windows[0]
+                self.context.context['pause'] = False
+                print(f"[PyTibia Engine] Janela do Tibia conectada: {windows[0].title}")
+            else:
+                print("[PyTibia Engine] Aviso: Nenhuma janela do Tibia foi encontrada. Abra o jogo.")
+
+        print("[PyTibia Engine] Loop de gameplay ativo.")
+
         while True:
             try:
                 if self.context.context['pause']:
+                    # Código original: continue
+                    sleep(0.1)
                     continue
                 startTime = time()
                 self.context.context = self.handleGameData(
@@ -72,6 +87,8 @@ class PyTibiaThread:
         return context
 
     def handleGameplayTasks(self, context):
+        if not context['cavebot']['enabled']:
+            return context
         context['cavebot']['closestCreature'] = getClosestCreature(
             context['gameWindow']['monsters'], context['radar']['coordinate'])
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
