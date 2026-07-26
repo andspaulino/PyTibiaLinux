@@ -30,6 +30,12 @@ resolutions = {
     },
 }
 creaturesNamesHashes = {}
+CREATURE_BAR_WIDTH = 31
+CREATURE_BAR_HEIGHT = 4
+CREATURE_BAR_LAST_X = CREATURE_BAR_WIDTH - 1
+CREATURE_BAR_INNER_LAST_X = CREATURE_BAR_WIDTH - 2
+CREATURE_BAR_LEFT_HALF = CREATURE_BAR_WIDTH // 2
+CREATURE_BAR_RIGHT_HALF = CREATURE_BAR_WIDTH - CREATURE_BAR_LEFT_HALF
 monsters_dir = currentPath / 'images' / 'monsters'
 
 def get_gw_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
@@ -77,25 +83,62 @@ def getClosestCreature(gameWindowCreatures, coordinate: Coordinate):
     return gameWindowCreatures[closestCreatureIndex]
 
 
-# TODO: add unit tests
 # TODO: add perf
+# Código original:
+# @njit(fastmath=True)
+# def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
+#     bars = []
+#     width = gameWindowImage.shape[1] - 27
+#     height = gameWindowImage.shape[0] - 3
+#     creatureIndex = 0
+#     for y in range(height):
+#         x = -1
+#         while x < width:
+#             x += 1
+#             if gameWindowImage[y, x + 26] != 0:
+#                 x += 26
+#                 continue
+#             bothBordersAreBlack = True
+#             for l in range(25):
+#                 key = x + 25 - l
+#                 if gameWindowImage[y, key] != 0 or gameWindowImage[y + 3, key] != 0:
+#                     bothBordersAreBlack = False
+#                     x = key
+#                     break
+#             if bothBordersAreBlack == False:
+#                 continue
+#             if (
+#                 gameWindowImage[y + 1, x] != 0 or
+#                 gameWindowImage[y + 2, x] != 0 or
+#                 gameWindowImage[y + 1, x + 26] != 0 or
+#                 gameWindowImage[y + 2, x + 26] != 0
+#             ):
+#                 continue
+#             bars.append((x, y))
+#             creatureIndex += 1
+#             x += 26
+#     return bars
+
+
 @njit(fastmath=True)
 def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
     bars = []
-    width = gameWindowImage.shape[1] - 27
-    height = gameWindowImage.shape[0] - 3
-    creatureIndex = 0
+    width = gameWindowImage.shape[1] - CREATURE_BAR_WIDTH
+    height = gameWindowImage.shape[0] - (CREATURE_BAR_HEIGHT - 1)
     for y in range(height):
         x = -1
         while x < width:
             x += 1
-            if gameWindowImage[y, x + 26] != 0:
-                x += 26
+            if gameWindowImage[y, x + CREATURE_BAR_LAST_X] != 0:
+                x += CREATURE_BAR_LAST_X
                 continue
             bothBordersAreBlack = True
-            for l in range(25):
-                key = x + 25 - l
-                if gameWindowImage[y, key] != 0 or gameWindowImage[y + 3, key] != 0:
+            for offset in range(CREATURE_BAR_WIDTH - 2):
+                key = x + CREATURE_BAR_INNER_LAST_X - offset
+                if (
+                    gameWindowImage[y, key] != 0 or
+                    gameWindowImage[y + CREATURE_BAR_HEIGHT - 1, key] != 0
+                ):
                     bothBordersAreBlack = False
                     x = key
                     break
@@ -104,13 +147,12 @@ def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
             if (
                 gameWindowImage[y + 1, x] != 0 or
                 gameWindowImage[y + 2, x] != 0 or
-                gameWindowImage[y + 1, x + 26] != 0 or
-                gameWindowImage[y + 2, x + 26] != 0
+                gameWindowImage[y + 1, x + CREATURE_BAR_LAST_X] != 0 or
+                gameWindowImage[y + 2, x + CREATURE_BAR_LAST_X] != 0
             ):
                 continue
             bars.append((x, y))
-            creatureIndex += 1
-            x += 26
+            x += CREATURE_BAR_LAST_X
     return bars
 
 
@@ -155,17 +197,29 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             creatureBarY0 = creatureBarY - 13
             creatureBarY1 = creatureBarY0 + 11
             creatureNameImgHalfWidth = math.floor(creatureNameImg.shape[1] / 2)
-            leftDiff = max(creatureNameImgHalfWidth - 13, 0)
+            # Código original:
+            # leftDiff = max(creatureNameImgHalfWidth - 13, 0)
+            # gapInnerLeft = 0 if creatureNameImg.shape[1] > 27 else math.ceil(
+            #     (27 - creatureNameImg.shape[1]) / 2)
+            # rightDiff = max(
+            #     creatureNameImg.shape[1] - creatureNameImgHalfWidth - 14, 0)
+            # gapRight = 0 if gameWindowWidth > (
+            #     creatureBarX + 27 + rightDiff) else creatureBarX + 27 + rightDiff - gameWindowWidth
+            # gapInnerRight = 0 if creatureNameImg.shape[1] > 27 else math.floor(
+            #     (27 - creatureNameImg.shape[1]) / 2)
+            # gg = 13 + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+            leftDiff = max(
+                creatureNameImgHalfWidth - CREATURE_BAR_LEFT_HALF, 0)
             gapLeft = 0 if creatureBarX > leftDiff else leftDiff - creatureBarX
-            gapInnerLeft = 0 if creatureNameImg.shape[1] > 27 else math.ceil(
-                (27 - creatureNameImg.shape[1]) / 2)
+            gapInnerLeft = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.ceil(
+                (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
             rightDiff = max(
-                creatureNameImg.shape[1] - creatureNameImgHalfWidth - 14, 0)
+                creatureNameImg.shape[1] - creatureNameImgHalfWidth - CREATURE_BAR_RIGHT_HALF, 0)
             gapRight = 0 if gameWindowWidth > (
-                creatureBarX + 27 + rightDiff) else creatureBarX + 27 + rightDiff - gameWindowWidth
-            gapInnerRight = 0 if creatureNameImg.shape[1] > 27 else math.floor(
-                (27 - creatureNameImg.shape[1]) / 2)
-            gg = 13 + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+                creatureBarX + CREATURE_BAR_WIDTH + rightDiff) else creatureBarX + CREATURE_BAR_WIDTH + rightDiff - gameWindowWidth
+            gapInnerRight = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.floor(
+                (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+            gg = CREATURE_BAR_LEFT_HALF + gapLeft + gapInnerLeft - gapRight - gapInnerRight
             startingX = max(0, creatureBarX - creatureNameImgHalfWidth + gg)
             endingX = min(gameWindowWidth, creatureBarX +
                           creatureNameImgHalfWidth + gg)
