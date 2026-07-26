@@ -11,7 +11,7 @@ from src.shared.typings import Coordinate, GrayImage, Slot, SlotWidth, XYCoordin
 from src.utils.core import hashit
 from src.utils.coordinate import getPixelFromCoordinate
 from src.utils.image import loadFromRGBToGray
-from src.utils.matrix import hasMatrixInsideOther
+# Código original: from src.utils.matrix import hasMatrixInsideOther
 from src.wiki.creatures import creatures as wikiCreatures
 from .typings import Creature, CreatureList
 
@@ -36,6 +36,11 @@ CREATURE_BAR_LAST_X = CREATURE_BAR_WIDTH - 1
 CREATURE_BAR_INNER_LAST_X = CREATURE_BAR_WIDTH - 2
 CREATURE_BAR_LEFT_HALF = CREATURE_BAR_WIDTH // 2
 CREATURE_BAR_RIGHT_HALF = CREATURE_BAR_WIDTH - CREATURE_BAR_LEFT_HALF
+CREATURE_NAME_TONE = 76
+CREATURE_NAME_TOLERANCE = 15
+CREATURE_NAME_MIN_CONFIDENCE = 0.50
+CREATURE_NAME_MIN_MARGIN = 0.05
+CREATURE_NAME_MAX_POSITION_DELTA = 4
 monsters_dir = currentPath / 'images' / 'monsters'
 
 def get_gw_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
@@ -156,7 +161,81 @@ def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
     return bars
 
 
-# TODO: add unit tests
+def getCreatureNameMatchConfidence(crop: GrayImage, template: GrayImage) -> float:
+    if crop.shape != template.shape or crop.size == 0:
+        return -1.0
+    lower = max(CREATURE_NAME_TONE - CREATURE_NAME_TOLERANCE, 0)
+    upper = min(CREATURE_NAME_TONE + CREATURE_NAME_TOLERANCE, 255)
+    cropMask = np.where(
+        (crop >= lower) & (crop <= upper), 255, 0).astype(np.uint8)
+    templateMask = np.where(template == 255, 255, 0).astype(np.uint8)
+    if np.all(cropMask == cropMask.flat[0]) or np.all(templateMask == templateMask.flat[0]):
+        return -1.0
+    return float(np.corrcoef(cropMask.flatten(), templateMask.flatten())[0, 1])
+
+
+def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
+    creatureBarX, creatureBarY = creatureBar
+    creatureBarY0 = creatureBarY - 13
+    creatureBarY1 = creatureBarY0 + 11
+    creatureNameImgHalfWidth = math.floor(creatureNameImg.shape[1] / 2)
+    leftDiff = max(creatureNameImgHalfWidth - CREATURE_BAR_LEFT_HALF, 0)
+    gapLeft = 0 if creatureBarX > leftDiff else leftDiff - creatureBarX
+    gapInnerLeft = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.ceil(
+        (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+    rightDiff = max(
+        creatureNameImg.shape[1] - creatureNameImgHalfWidth - CREATURE_BAR_RIGHT_HALF, 0)
+    gapRight = 0 if gameWindowWidth > (
+        creatureBarX + CREATURE_BAR_WIDTH + rightDiff) else creatureBarX + CREATURE_BAR_WIDTH + rightDiff - gameWindowWidth
+    gapInnerRight = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.floor(
+        (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+    alignment = CREATURE_BAR_LEFT_HALF + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+    startingX = max(0, creatureBarX - creatureNameImgHalfWidth + alignment)
+    endingX = min(gameWindowWidth, startingX + creatureNameImg.shape[1])
+    return startingX, endingX, creatureBarY0, creatureBarY1
+
+
+def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
+    scores = []
+    gameWindowHeight, gameWindowWidth = gameWindowImage.shape
+    for creatureName in dict.fromkeys(creatureNames):
+        template = creaturesNamesHashes.get(creatureName)
+        if template is None:
+            continue
+        startingX, endingX, startingY, endingY = getCreatureNamePosition(
+            creatureBar, template, gameWindowWidth)
+        bestConfidence = -1.0
+        bestPosition = None
+        for yOffset in range(-CREATURE_NAME_MAX_POSITION_DELTA, CREATURE_NAME_MAX_POSITION_DELTA + 1):
+            y0 = startingY + yOffset
+            y1 = endingY + yOffset
+            if y0 < 0 or y1 > gameWindowHeight:
+                continue
+            for xOffset in range(-CREATURE_NAME_MAX_POSITION_DELTA, CREATURE_NAME_MAX_POSITION_DELTA + 1):
+                x0 = startingX + xOffset
+                x1 = endingX + xOffset
+                if x0 < 0 or x1 > gameWindowWidth:
+                    continue
+                crop = gameWindowImage[y0:y1, x0:x1]
+                confidence = getCreatureNameMatchConfidence(crop, template)
+                if confidence > bestConfidence:
+                    bestConfidence = confidence
+                    bestPosition = (x0, y0)
+        scores.append((creatureName, bestConfidence, bestPosition))
+    scores.sort(key=lambda item: item[1], reverse=True)
+    if not scores:
+        return None, -1.0, -1.0, None
+    bestName, bestConfidence, bestPosition = scores[0]
+    secondConfidence = scores[1][1] if len(scores) > 1 else -1.0
+    hasRequiredMargin = (
+        len(scores) == 1
+        or bestConfidence - secondConfidence >= CREATURE_NAME_MIN_MARGIN
+    )
+    if bestConfidence < CREATURE_NAME_MIN_CONFIDENCE or not hasRequiredMargin:
+        return None, bestConfidence, secondConfidence, bestPosition
+    return bestName, bestConfidence, secondConfidence, bestPosition
+
+
 # TODO: add perf
 # TODO: add typings
 # TODO: add name missAlignment for each creature, it avoid possible 3 calculations
@@ -180,6 +259,11 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
     discoverTarget = beingAttackedCreatureCategory is not None
     nonCreaturesForCurrentBar = {}
     for creatureBarSortedIndex in creaturesBarsSortedIndexes:
+        normalizedCreatureName, _, _, _ = classifyCreatureName(
+            gameWindowImage,
+            creaturesBars[creatureBarSortedIndex],
+            [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
+        )
         for battleListIndex in range(len(battleListCreatures)):
             creatureName = battleListCreatures[battleListIndex]['name']
             if creatureName == 'Unknown':
@@ -228,7 +312,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureNameImg.shape[1] != creatureWithDirtNameImg.shape[1]:
                 creatureWithDirtNameImg = gameWindowImage[creatureBarY0:creatureBarY1,
                                                           startingX:endingX + 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg, creatureNameImg):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg, creatureNameImg):
+            if normalizedCreatureName == creatureName:
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:
@@ -241,7 +327,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureNameImg2.shape[1] != creatureWithDirtNameImg2.shape[1]:
                 creatureNameImg2 = creatureNameImg2[:,
                                                     0:creatureNameImg2.shape[1] - 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg2, creatureNameImg2):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg2, creatureNameImg2):
+            if False:  # coberto pela classificação normalizada acima no Linux
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:
@@ -255,7 +343,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureWithDirtNameImg3.shape[1] != creatureNameImg3.shape[1]:
                 creatureNameImg3 = creatureNameImg3[:,
                                                     0:creatureNameImg3.shape[1] - 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg3, creatureNameImg3):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg3, creatureNameImg3):
+            if False:  # coberto pela classificação normalizada acima no Linux
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:
