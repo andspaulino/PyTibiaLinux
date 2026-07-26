@@ -1,7 +1,8 @@
 import pyautogui
 from time import sleep, time
 import traceback
-from src.gameplay.cavebot import resolveCavebotTasks, shouldAskForCavebotTasks
+# Código original:
+# from src.gameplay.cavebot import resolveCavebotTasks, shouldAskForCavebotTasks
 from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
@@ -17,7 +18,7 @@ from src.gameplay.healing.observers.healingBySpells import healingBySpells
 from src.gameplay.healing.observers.healingByPotions import healingByPotions
 from src.gameplay.healing.observers.swapAmulet import swapAmulet
 from src.gameplay.healing.observers.swapRing import swapRing
-from src.gameplay.targeting import hasCreaturesToAttack
+from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
 from src.repositories.gameWindow.creatures import getClosestCreature
 
 
@@ -86,15 +87,67 @@ class PyTibiaThread:
         context = setCleanUpTasksMiddleware(context)
         return context
 
+    # Código original da adaptação Linux antes do Marco 8.5:
+    # def handleGameplayTasks(self, context):
+    #     if not context['cavebot']['enabled']:
+    #         return context
+    #     context['cavebot']['closestCreature'] = getClosestCreature(
+    #         context['gameWindow']['monsters'], context['radar']['coordinate'])
+    #     currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+    #     if currentTask is not None and currentTask.name == 'selectChatTab':
+    #         return context
+    #     if len(context['loot']['corpsesToLoot']) > 0:
+    #         context['way'] = 'lootCorpses'
+    #         if currentTask is not None and currentTask.rootTask is not None and currentTask.rootTask.name != 'lootCorpse':
+    #             context['tasksOrchestrator'].setRootTask(context, None)
+    #         if context['tasksOrchestrator'].getCurrentTask(context) is None:
+    #             firstDeadCorpse = context['loot']['corpsesToLoot'][0]
+    #             context['tasksOrchestrator'].setRootTask(
+    #                 context, LootCorpseTask(firstDeadCorpse))
+    #         context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
+    #         return context
+    #     hasCreaturesToAttackAfterCheck = hasCreaturesToAttack(context)
+    #     if hasCreaturesToAttackAfterCheck:
+    #         if context['cavebot']['closestCreature'] is not None:
+    #             context['way'] = 'cavebot'
+    #         else:
+    #             context['way'] = 'waypoint'
+    #     else:
+    #         context['way'] = 'waypoint'
+    #     if hasCreaturesToAttackAfterCheck and shouldAskForCavebotTasks(context):
+    #         currentRootTask = currentTask.rootTask if currentTask is not None else None
+    #         isTryingToAttackClosestCreature = currentRootTask is not None and (
+    #             currentRootTask.name == 'attackClosestCreature')
+    #         if not isTryingToAttackClosestCreature:
+    #             context = resolveCavebotTasks(context)
+    #     elif context['way'] == 'waypoint':
+    #         if context['tasksOrchestrator'].getCurrentTask(context) is None:
+    #             currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
+    #             currentWaypoint = context['cavebot']['waypoints']['items'][currentWaypointIndex]
+    #             context['tasksOrchestrator'].setRootTask(
+    #                 context, resolveTasksByWaypoint(currentWaypoint))
+    #     context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
+    #     return context
+
     def handleGameplayTasks(self, context):
-        if not context['cavebot']['enabled']:
-            return context
-        context['cavebot']['closestCreature'] = getClosestCreature(
-            context['gameWindow']['monsters'], context['radar']['coordinate'])
+        targetingEnabled = context['targeting'].get('enabled', False)
+        cavebotEnabled = context['cavebot'].get('enabled', False)
+
+        context['cavebot']['closestCreature'] = None
+        if (
+            targetingEnabled
+            and context['radar']['coordinate'] is not None
+            and len(context['gameWindow']['monsters']) > 0
+        ):
+            context['cavebot']['closestCreature'] = getClosestCreature(
+                context['gameWindow']['monsters'], context['radar']['coordinate'])
+
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
         if currentTask is not None and currentTask.name == 'selectChatTab':
             return context
-        if len(context['loot']['corpsesToLoot']) > 0:
+
+        # Loot permanece associado ao Cavebot até o Marco 10.
+        if cavebotEnabled and len(context['loot']['corpsesToLoot']) > 0:
             context['way'] = 'lootCorpses'
             if currentTask is not None and currentTask.rootTask is not None and currentTask.rootTask.name != 'lootCorpse':
                 context['tasksOrchestrator'].setRootTask(context, None)
@@ -105,25 +158,34 @@ class PyTibiaThread:
                     context, LootCorpseTask(firstDeadCorpse))
             context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
             return context
-        hasCreaturesToAttackAfterCheck = hasCreaturesToAttack(context)
+
+        hasCreaturesToAttackAfterCheck = (
+            targetingEnabled
+            and context['cavebot']['closestCreature'] is not None
+            and hasCreaturesToAttack(context)
+        )
+
         if hasCreaturesToAttackAfterCheck:
-            if context['cavebot']['closestCreature'] is not None:
-                context['way'] = 'cavebot'
-            else:
-                context['way'] = 'waypoint'
+            context['way'] = 'targeting'
+            if shouldAskForTargetingTasks(context):
+                currentRootTask = currentTask.rootTask if currentTask is not None else None
+                isTryingToAttackClosestCreature = currentRootTask is not None and (
+                    currentRootTask.name == 'attackClosestCreature')
+                if not isTryingToAttackClosestCreature:
+                    context = resolveTargetingTasks(context)
         else:
-            context['way'] = 'waypoint'
-        if hasCreaturesToAttackAfterCheck and shouldAskForCavebotTasks(context):
-            currentRootTask = currentTask.rootTask if currentTask is not None else None
-            isTryingToAttackClosestCreature = currentRootTask is not None and (
-                currentRootTask.name == 'attackClosestCreature')
-            if not isTryingToAttackClosestCreature:
-                context = resolveCavebotTasks(context)
-        elif context['way'] == 'waypoint':
-            if context['tasksOrchestrator'].getCurrentTask(context) is None:
-                currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
-                currentWaypoint = context['cavebot']['waypoints']['items'][currentWaypointIndex]
+            context['way'] = 'waypoint' if cavebotEnabled else None
+            currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+            currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
+            waypoints = context['cavebot']['waypoints']['items']
+            if (
+                cavebotEnabled
+                and currentTask is None
+                and currentWaypointIndex is not None
+                and 0 <= currentWaypointIndex < len(waypoints)
+            ):
                 context['tasksOrchestrator'].setRootTask(
-                    context, resolveTasksByWaypoint(currentWaypoint))
+                    context, resolveTasksByWaypoint(waypoints[currentWaypointIndex]))
+
         context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
         return context
