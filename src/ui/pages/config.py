@@ -1,14 +1,14 @@
-import pygetwindow as gw
 import re
 import tkinter as tk
 from tkinter import ttk
-import win32gui
+from src.utils.window import get_tibia_windows, TibiaWindow
 
 
 class ConfigPage(tk.Frame):
     def __init__(self, parent, context):
         super().__init__(parent)
         self.context = context
+        self._window_map = {}
         self.windowsFrame = tk.LabelFrame(
             self, text='Tibia window', padx=10, pady=10)
         self.windowsFrame.grid(column=0, row=0, padx=10,
@@ -43,22 +43,16 @@ class ConfigPage(tk.Frame):
 
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
-        self.columnconfigure(1, weight=1)
 
     def getTibiaWindows(self):
-        def enum_windows_callback(hwnd, results):
-            if win32gui.IsWindowVisible(hwnd):
-                window_title = win32gui.GetWindowText(hwnd)
-                if re.match(r"Tibia.*", window_title):
-                    results.append(window_title)
-        results = []
-        win32gui.EnumWindows(enum_windows_callback, results)
-        return results
+        windows = get_tibia_windows()
+        self._window_map = {w.title: w for w in windows}
+        return list(self._window_map.keys())
 
     def refreshWindows(self):
         self.windowsCombobox['values'] = self.getTibiaWindows()
 
     def onChangeWindow(self, _):
         selectedWindow = self.windowsCombobox.get()
-        self.context.context['window'] = gw.getWindowsWithTitle(selectedWindow)[
-            0]
+        if selectedWindow in self._window_map:
+            self.context.context['window'] = self._window_map[selectedWindow]

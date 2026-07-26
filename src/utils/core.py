@@ -1,13 +1,20 @@
 import cv2
-import dxcam
+from mss import mss
 from farmhash import FarmHash64
 import numpy as np
 from typing import Callable, Union
 from src.shared.typings import BBox, GrayImage
 
 
-camera = dxcam.create(output_color='BGRA')
+camera = None
 latestScreenshot = None
+
+
+def getCamera():
+    global camera
+    if camera is None:
+        camera = mss()
+    return camera
 
 
 # TODO: add unit tests
@@ -62,9 +69,11 @@ def locateMultiple(compareImg: GrayImage, img: GrayImage, confidence: float = 0.
 
 # TODO: add unit tests
 def getScreenshot() -> GrayImage:
-    global camera, latestScreenshot
-    screenshot = camera.grab()
+    global latestScreenshot
+    screenCapture = getCamera()
+    screenshot = screenCapture.grab(screenCapture.monitors[1])
     if screenshot is None:
         return latestScreenshot
-    latestScreenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2GRAY)
+    latestScreenshot = cv2.cvtColor(
+        np.asarray(screenshot), cv2.COLOR_BGRA2GRAY)
     return latestScreenshot

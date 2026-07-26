@@ -29,9 +29,21 @@ images = {
 }
 creaturesNamesImagesHashes = {}
 
+def get_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
+    exact = folder / f'{name}.png'
+    if exact.exists():
+        return exact
+    name_lower = f'{name}.png'.lower()
+    for item in folder.iterdir():
+        if item.name.lower() == name_lower:
+            return item
+    return None
+
+monsters_folder = pathlib.Path(monstersPath)
 for creatureName in creatures:
-    creatureNameImage = loadFromRGBToGray(
-        f'{monstersPath}/{creatureName}.png')
-    creatureNameImage = np.ravel(creatureNameImage[8:9, 0:115])
-    creatureNameImageHash = hashit(creatureNameImage)
-    creaturesNamesImagesHashes[creatureNameImageHash] = creatureName
+    img_path = get_monster_image_path(monsters_folder, creatureName)
+    if img_path is not None:
+        creatureNameImage = loadFromRGBToGray(str(img_path))
+        creatureNameImage = np.ravel(creatureNameImage[8:9, 0:115])
+        creatureNameImageHash = hashit(creatureNameImage)
+        creaturesNamesImagesHashes[creatureNameImageHash] = creatureName

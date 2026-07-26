@@ -30,9 +30,22 @@ resolutions = {
     },
 }
 creaturesNamesHashes = {}
+monsters_dir = currentPath / 'images' / 'monsters'
+
+def get_gw_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
+    exact = folder / f'{name}.png'
+    if exact.exists():
+        return exact
+    name_lower = f'{name}.png'.lower()
+    for item in folder.iterdir():
+        if item.name.lower() == name_lower:
+            return item
+    return None
+
 for creature in wikiCreatures:
-    creaturesNamesHashes[creature] = loadFromRGBToGray(
-        f'{currentPath}/images/monsters/{creature}.png')
+    img_path = get_gw_monster_image_path(monsters_dir, creature)
+    if img_path is not None:
+        creaturesNamesHashes[creature] = loadFromRGBToGray(str(img_path))
 
 
 # TODO: add unit tests
