@@ -6,7 +6,7 @@ import traceback
 from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
-from src.gameplay.core.middlewares.gameWindow import setDirectionMiddleware, setHandleLootMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
+from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setHandleLootMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
 from src.gameplay.core.middlewares.playerStatus import setMapPlayerStatusMiddleware
 from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointIndexMiddleware
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
@@ -30,6 +30,7 @@ class PyTibiaThread:
     # TODO: add typings
     def __init__(self, context):
         self.context = context
+        self.lastTargetingDebugAt = 0
 
     def mainloop(self):
         # Seleção automática de janela no Linux (Modo CLI sem UI)
@@ -134,15 +135,50 @@ class PyTibiaThread:
         cavebotEnabled = context['cavebot'].get('enabled', False)
 
         context['cavebot']['closestCreature'] = None
+        # Código Linux anterior: o Targeting era bloqueado sempre que o Radar
+        # não reconhecia a coordenada mundial, mesmo sem Cavebot/caminhada.
+        # if (
+        #     targetingEnabled
+        #     and context['radar']['coordinate'] is not None
+        #     and len(context['gameWindow']['monsters']) > 0
+        # ):
+        #     context['cavebot']['closestCreature'] = getClosestCreature(
+        #         context['gameWindow']['monsters'], context['radar']['coordinate'])
+        canResolveClosestCreature = (
+            context['radar']['coordinate'] is not None
+            or canUseVisualTargetingWithoutRadar(context)
+        )
         if (
             targetingEnabled
-            and context['radar']['coordinate'] is not None
+            and canResolveClosestCreature
             and len(context['gameWindow']['monsters']) > 0
         ):
+            closestCreatureCoordinate = (
+                context['radar']['coordinate']
+                if context['radar']['coordinate'] is not None
+                else VISUAL_TARGETING_FALLBACK_COORDINATE
+            )
             context['cavebot']['closestCreature'] = getClosestCreature(
-                context['gameWindow']['monsters'], context['radar']['coordinate'])
+                context['gameWindow']['monsters'], closestCreatureCoordinate)
 
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+        currentTime = time()
+        if currentTime - self.lastTargetingDebugAt >= 1:
+            closestCreature = context['cavebot']['closestCreature']
+            closestCreatureName = (
+                closestCreature['name'] if closestCreature is not None else None
+            )
+            print(
+                "[Targeting Debug] "
+                f"enabled={targetingEnabled} "
+                f"radar={context['radar']['coordinate']} "
+                f"battleList={len(context['battleList']['creatures'])} "
+                f"monsters={len(context['gameWindow']['monsters'])} "
+                f"closest={closestCreatureName!r} "
+                f"attacking={context['cavebot']['isAttackingSomeCreature']} "
+                f"task={currentTask.name if currentTask is not None else None!r}"
+            )
+            self.lastTargetingDebugAt = currentTime
         if currentTask is not None and currentTask.name == 'selectChatTab':
             return context
 

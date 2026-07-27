@@ -36,8 +36,13 @@ CREATURE_BAR_LAST_X = CREATURE_BAR_WIDTH - 1
 CREATURE_BAR_INNER_LAST_X = CREATURE_BAR_WIDTH - 2
 CREATURE_BAR_LEFT_HALF = CREATURE_BAR_WIDTH // 2
 CREATURE_BAR_RIGHT_HALF = CREATURE_BAR_WIDTH - CREATURE_BAR_LEFT_HALF
-CREATURE_NAME_TONE = 76
-CREATURE_NAME_TOLERANCE = 15
+# Classificador Linux anterior: uma única faixa grayscale funcionava para parte
+# dos nomes, mas variava conforme HP, piso e rasterização Qt 6/FreeType.
+# CREATURE_NAME_TONE = 76
+# CREATURE_NAME_TOLERANCE = 15
+CREATURE_NAME_TONES = (29, 57, 76, 91, 113, 152, 170, 192)
+CREATURE_NAME_TOLERANCES = (3, 8, 15)
+CREATURE_NAME_DISCRIMINATIVE_WEIGHT = 1.0
 CREATURE_NAME_MIN_CONFIDENCE = 0.50
 CREATURE_NAME_MIN_MARGIN = 0.05
 CREATURE_NAME_MAX_POSITION_DELTA = 4
@@ -161,17 +166,113 @@ def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
     return bars
 
 
-def getCreatureNameMatchConfidence(crop: GrayImage, template: GrayImage) -> float:
+# Classificador Linux anterior, preservado para comparação:
+# def getCreatureNameMatchConfidence(crop: GrayImage, template: GrayImage) -> float:
+#     if crop.shape != template.shape or crop.size == 0:
+#         return -1.0
+#     lower = max(CREATURE_NAME_TONE - CREATURE_NAME_TOLERANCE, 0)
+#     upper = min(CREATURE_NAME_TONE + CREATURE_NAME_TOLERANCE, 255)
+#     cropMask = np.where(
+#         (crop >= lower) & (crop <= upper), 255, 0).astype(np.uint8)
+#     templateMask = np.where(template == 255, 255, 0).astype(np.uint8)
+#     if np.all(cropMask == cropMask.flat[0]) or np.all(templateMask == templateMask.flat[0]):
+#         return -1.0
+#     return float(np.corrcoef(cropMask.flatten(), templateMask.flatten())[0, 1])
+
+
+def getCreatureNameMaskCorrelation(cropMask, templateMask) -> float:
+    if cropMask.shape != templateMask.shape or cropMask.size == 0:
+        return -1.0
+    cropFlat = cropMask.ravel().astype(np.float64)
+    templateFlat = templateMask.ravel().astype(np.float64)
+    if np.all(cropFlat == cropFlat[0]) or np.all(templateFlat == templateFlat[0]):
+        return -1.0
+    correlation = float(np.corrcoef(cropFlat, templateFlat)[0, 1])
+    return correlation if math.isfinite(correlation) else -1.0
+
+
+def getCreatureNameDiscriminativeAgreement(
+    cropMask,
+    templateMask,
+    discriminativeMask,
+):
+    selected = discriminativeMask.astype(bool)
+    if not np.any(selected):
+        return None
+    observed = cropMask[selected].astype(bool)
+    expected = templateMask[selected].astype(bool)
+    positives = expected
+    negatives = ~expected
+    positiveAccuracy = (
+        float(np.mean(observed[positives])) if np.any(positives) else None
+    )
+    negativeAccuracy = (
+        float(np.mean(~observed[negatives])) if np.any(negatives) else None
+    )
+    if positiveAccuracy is None:
+        return negativeAccuracy
+    if negativeAccuracy is None:
+        return positiveAccuracy
+    return (positiveAccuracy + negativeAccuracy) / 2.0
+
+
+def getCreatureNameDiscriminativeMasks(creatureNames):
+    names = [
+        name for name in dict.fromkeys(creatureNames)
+        if name in creaturesNamesHashes
+    ]
+    templates = {
+        name: (creaturesNamesHashes[name] == 255).astype(np.uint8)
+        for name in names
+    }
+    masks = {}
+    for name, templateMask in templates.items():
+        discriminativeMask = np.zeros(templateMask.shape, dtype=bool)
+        for otherName, otherTemplateMask in templates.items():
+            if otherName == name or otherTemplateMask.shape != templateMask.shape:
+                continue
+            discriminativeMask |= templateMask != otherTemplateMask
+        masks[name] = discriminativeMask
+    return masks
+
+
+def getCreatureNameMatchConfidence(
+    crop: GrayImage,
+    template: GrayImage,
+    discriminativeMask=None,
+) -> float:
     if crop.shape != template.shape or crop.size == 0:
         return -1.0
-    lower = max(CREATURE_NAME_TONE - CREATURE_NAME_TOLERANCE, 0)
-    upper = min(CREATURE_NAME_TONE + CREATURE_NAME_TOLERANCE, 255)
-    cropMask = np.where(
-        (crop >= lower) & (crop <= upper), 255, 0).astype(np.uint8)
-    templateMask = np.where(template == 255, 255, 0).astype(np.uint8)
-    if np.all(cropMask == cropMask.flat[0]) or np.all(templateMask == templateMask.flat[0]):
-        return -1.0
-    return float(np.corrcoef(cropMask.flatten(), templateMask.flatten())[0, 1])
+    templateMask = (template == 255).astype(np.uint8)
+    if discriminativeMask is None:
+        discriminativeMask = np.zeros(templateMask.shape, dtype=bool)
+    bestConfidence = -1.0
+    for tone in CREATURE_NAME_TONES:
+        for tolerance in CREATURE_NAME_TOLERANCES:
+            lower = max(tone - tolerance, 0)
+            upper = min(tone + tolerance, 255)
+            cropMask = ((crop >= lower) & (crop <= upper)).astype(np.uint8)
+            baseConfidence = getCreatureNameMaskCorrelation(
+                cropMask, templateMask)
+            if baseConfidence < -0.999:
+                continue
+            discriminativeConfidence = getCreatureNameDiscriminativeAgreement(
+                cropMask,
+                templateMask,
+                discriminativeMask,
+            )
+            centeredDiscriminativeConfidence = (
+                (discriminativeConfidence - 0.5) * 2.0
+                if discriminativeConfidence is not None
+                else 0.0
+            )
+            confidence = baseConfidence + (
+                CREATURE_NAME_DISCRIMINATIVE_WEIGHT
+                * centeredDiscriminativeConfidence
+            )
+            if confidence > bestConfidence:
+                bestConfidence = confidence
+    return bestConfidence
 
 
 def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
@@ -198,6 +299,7 @@ def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
 def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
     scores = []
     gameWindowHeight, gameWindowWidth = gameWindowImage.shape
+    discriminativeMasks = getCreatureNameDiscriminativeMasks(creatureNames)
     for creatureName in dict.fromkeys(creatureNames):
         template = creaturesNamesHashes.get(creatureName)
         if template is None:
@@ -217,7 +319,11 @@ def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
                 if x0 < 0 or x1 > gameWindowWidth:
                     continue
                 crop = gameWindowImage[y0:y1, x0:x1]
-                confidence = getCreatureNameMatchConfidence(crop, template)
+                confidence = getCreatureNameMatchConfidence(
+                    crop,
+                    template,
+                    discriminativeMasks.get(creatureName),
+                )
                 if confidence > bestConfidence:
                     bestConfidence = confidence
                     bestPosition = (x0, y0)

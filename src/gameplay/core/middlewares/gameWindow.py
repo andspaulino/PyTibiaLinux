@@ -8,6 +8,20 @@ from ...typings import Context
 from ..tasks.selectChatTab import SelectChatTabTask
 
 
+# Coordenada interna sem significado mundial, usada somente para montar a grade
+# visual quando o Targeting está desacoplado do Radar e não pode caminhar.
+VISUAL_TARGETING_FALLBACK_COORDINATE = (32000, 32000, 7)
+
+
+def canUseVisualTargetingWithoutRadar(context: Context) -> bool:
+    return (
+        context['targeting'].get('enabled', False)
+        and not context['targeting'].get('walkToTarget', False)
+        and not context['cavebot'].get('enabled', False)
+    )
+
+
+
 # TODO: add unit tests
 def setDirectionMiddleware(context: Context) -> Context:
     if context['radar']['coordinate'] is None:
@@ -80,16 +94,34 @@ def setGameWindowMiddleware(context: Context) -> Context:
 
 # TODO: add unit tests
 def setGameWindowCreaturesMiddleware(context: Context) -> Context:
-    if context['gameWindow']['coordinate'] is None or context['radar']['coordinate'] is None or context['gameWindow']['image'] is None:
+    # Código Linux anterior:
+    # if context['gameWindow']['coordinate'] is None or context['radar']['coordinate'] is None or context['gameWindow']['image'] is None:
+    #     context['gameWindow']['creatures'] = []
+    #     context['gameWindow']['monsters'] = []
+    #     context['gameWindow']['players'] = []
+    #     return context
+    if (
+        context['gameWindow']['coordinate'] is None
+        or context['gameWindow']['image'] is None
+        or (
+            context['radar']['coordinate'] is None
+            and not canUseVisualTargetingWithoutRadar(context)
+        )
+    ):
         context['gameWindow']['creatures'] = []
         context['gameWindow']['monsters'] = []
         context['gameWindow']['players'] = []
         return context
+    creatureBaseCoordinate = (
+        context['radar']['coordinate']
+        if context['radar']['coordinate'] is not None
+        else VISUAL_TARGETING_FALLBACK_COORDINATE
+    )
     # Código original:
     context['battleList']['beingAttackedCreatureCategory'] = getBeingAttackedCreatureCategory(
         context['battleList']['creatures'])
     context['gameWindow']['creatures'] = getCreatures(
-        context['battleList']['creatures'], context['comingFromDirection'], context['gameWindow']['coordinate'], context['gameWindow']['image'], context['radar']['coordinate'], beingAttackedCreatureCategory=context['battleList']['beingAttackedCreatureCategory'], walkedPixelsInSqm=context['gameWindow']['walkedPixelsInSqm'])
+        context['battleList']['creatures'], context['comingFromDirection'], context['gameWindow']['coordinate'], context['gameWindow']['image'], creatureBaseCoordinate, beingAttackedCreatureCategory=context['battleList']['beingAttackedCreatureCategory'], walkedPixelsInSqm=context['gameWindow']['walkedPixelsInSqm'])
     if len(context['gameWindow']['creatures']) == 0:
         context['gameWindow']['monsters'] = []
         context['gameWindow']['players'] = []
