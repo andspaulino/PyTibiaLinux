@@ -1,5 +1,6 @@
 import numpy as np
 
+from src.gameplay import cavebot as cavebot_gameplay
 from src.gameplay.core.middlewares import gameWindow as game_window_middleware
 
 
@@ -97,3 +98,41 @@ def test_game_window_still_requires_radar_when_walking(monkeypatch):
 
     assert not called
     assert result["gameWindow"]["monsters"] == []
+
+
+class FakeTasksOrchestrator:
+    def __init__(self):
+        self.rootTask = None
+
+    def getCurrentTask(self, context):
+        return None
+
+    def setRootTask(self, context, task):
+        self.rootTask = task
+
+
+def test_active_visual_target_does_not_use_pathfinding_without_radar(monkeypatch):
+    context = make_context()
+    monster = {"name": "Bug", "slot": (7, 4)}
+    context["gameWindow"]["monsters"] = [monster]
+    context["cavebot"].update({
+        "isAttackingSomeCreature": True,
+        "targetCreature": monster,
+        "closestCreature": monster,
+    })
+    context["tasksOrchestrator"] = FakeTasksOrchestrator()
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("pathfinding não deve receber Radar=None")
+
+    monkeypatch.setattr(
+        cavebot_gameplay,
+        "hasTargetToCreature",
+        fail_if_called,
+    )
+
+    result = cavebot_gameplay.resolveCavebotTasks(context)
+
+    assert result is context
+    assert context["tasksOrchestrator"].rootTask is not None
+    assert context["tasksOrchestrator"].rootTask.name == "attackClosestCreature"

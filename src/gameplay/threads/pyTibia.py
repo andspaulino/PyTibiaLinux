@@ -30,7 +30,6 @@ class PyTibiaThread:
     # TODO: add typings
     def __init__(self, context):
         self.context = context
-        self.lastTargetingDebugAt = 0
 
     def mainloop(self):
         # Seleção automática de janela no Linux (Modo CLI sem UI)
@@ -162,23 +161,6 @@ class PyTibiaThread:
                 context['gameWindow']['monsters'], closestCreatureCoordinate)
 
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
-        currentTime = time()
-        if currentTime - self.lastTargetingDebugAt >= 1:
-            closestCreature = context['cavebot']['closestCreature']
-            closestCreatureName = (
-                closestCreature['name'] if closestCreature is not None else None
-            )
-            print(
-                "[Targeting Debug] "
-                f"enabled={targetingEnabled} "
-                f"radar={context['radar']['coordinate']} "
-                f"battleList={len(context['battleList']['creatures'])} "
-                f"monsters={len(context['gameWindow']['monsters'])} "
-                f"closest={closestCreatureName!r} "
-                f"attacking={context['cavebot']['isAttackingSomeCreature']} "
-                f"task={currentTask.name if currentTask is not None else None!r}"
-            )
-            self.lastTargetingDebugAt = currentTime
         if currentTask is not None and currentTask.name == 'selectChatTab':
             return context
 

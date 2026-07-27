@@ -4,14 +4,38 @@ from .core.tasks.attackClosestCreature import AttackClosestCreatureTask
 from .typings import Context
 
 
+def canKeepVisualTargetWithoutRadar(context: Context) -> bool:
+    return (
+        context['radar']['coordinate'] is None
+        and context['targeting'].get('enabled', False)
+        and not context['targeting'].get('walkToTarget', False)
+        and not context['cavebot'].get('enabled', False)
+    )
+
+
 # TODO: add unit tests
 def resolveCavebotTasks(context: Context) -> Union[AttackClosestCreatureTask, None]:
     currentTask = context['tasksOrchestrator'].getCurrentTask(context)
     if context['cavebot']['isAttackingSomeCreature']:
         if context['cavebot']['targetCreature'] is None:
             return context
-        if hasTargetToCreature(
-                context['gameWindow']['monsters'], context['cavebot']['targetCreature'], context['radar']['coordinate']) == False:
+        # Código original:
+        # if hasTargetToCreature(
+        #         context['gameWindow']['monsters'], context['cavebot']['targetCreature'], context['radar']['coordinate']) == False:
+        #     if context['cavebot']['closestCreature'] is None:
+        #         return context
+        #     context['tasksOrchestrator'].setRootTask(
+        #         context, AttackClosestCreatureTask())
+        #     return context
+        radarCoordinate = context['radar']['coordinate']
+        if radarCoordinate is None:
+            if not canKeepVisualTargetWithoutRadar(context):
+                return context
+        elif not hasTargetToCreature(
+            context['gameWindow']['monsters'],
+            context['cavebot']['targetCreature'],
+            radarCoordinate,
+        ):
             if context['cavebot']['closestCreature'] is None:
                 return context
             context['tasksOrchestrator'].setRootTask(
