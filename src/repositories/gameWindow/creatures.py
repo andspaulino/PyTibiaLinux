@@ -11,7 +11,7 @@ from src.shared.typings import Coordinate, GrayImage, Slot, SlotWidth, XYCoordin
 from src.utils.core import hashit
 from src.utils.coordinate import getPixelFromCoordinate
 from src.utils.image import loadFromRGBToGray
-from src.utils.matrix import hasMatrixInsideOther
+# Código original: from src.utils.matrix import hasMatrixInsideOther
 from src.wiki.creatures import creatures as wikiCreatures
 from .typings import Creature, CreatureList
 
@@ -30,6 +30,26 @@ resolutions = {
     },
 }
 creaturesNamesHashes = {}
+CREATURE_BAR_WIDTH = 31
+CREATURE_BAR_HEIGHT = 4
+CREATURE_BAR_LAST_X = CREATURE_BAR_WIDTH - 1
+CREATURE_BAR_INNER_LAST_X = CREATURE_BAR_WIDTH - 2
+CREATURE_BAR_LEFT_HALF = CREATURE_BAR_WIDTH // 2
+CREATURE_BAR_RIGHT_HALF = CREATURE_BAR_WIDTH - CREATURE_BAR_LEFT_HALF
+# Classificador Linux anterior: uma única faixa grayscale funcionava para parte
+# dos nomes, mas variava conforme HP, piso e rasterização Qt 6/FreeType.
+# CREATURE_NAME_TONE = 76
+# CREATURE_NAME_TOLERANCE = 15
+CREATURE_NAME_TONES = (29, 57, 76, 91, 113, 152, 170, 192)
+CREATURE_NAME_TOLERANCES = (3, 8, 15)
+CREATURE_NAME_DISCRIMINATIVE_WEIGHT = 1.0
+CREATURE_NAME_MIN_CONFIDENCE = 0.50
+CREATURE_NAME_MIN_MARGIN = 0.05
+CREATURE_NAME_MAX_POSITION_DELTA = 4
+CREATURE_NAME_BOOLEAN_TONES = (0, 29, 57, 91, 113, 152, 170, 192)
+CREATURE_NAME_BOOLEAN_TOLERANCES = (0, 3, 8, 15)
+CREATURE_NAME_BOOLEAN_MAX_VIOLATION_RATIO = 0.005
+CREATURE_NAME_BOOLEAN_MIN_RATIO_MARGIN = 0.005
 monsters_dir = currentPath / 'images' / 'monsters'
 
 def get_gw_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
@@ -77,25 +97,62 @@ def getClosestCreature(gameWindowCreatures, coordinate: Coordinate):
     return gameWindowCreatures[closestCreatureIndex]
 
 
-# TODO: add unit tests
 # TODO: add perf
+# Código original:
+# @njit(fastmath=True)
+# def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
+#     bars = []
+#     width = gameWindowImage.shape[1] - 27
+#     height = gameWindowImage.shape[0] - 3
+#     creatureIndex = 0
+#     for y in range(height):
+#         x = -1
+#         while x < width:
+#             x += 1
+#             if gameWindowImage[y, x + 26] != 0:
+#                 x += 26
+#                 continue
+#             bothBordersAreBlack = True
+#             for l in range(25):
+#                 key = x + 25 - l
+#                 if gameWindowImage[y, key] != 0 or gameWindowImage[y + 3, key] != 0:
+#                     bothBordersAreBlack = False
+#                     x = key
+#                     break
+#             if bothBordersAreBlack == False:
+#                 continue
+#             if (
+#                 gameWindowImage[y + 1, x] != 0 or
+#                 gameWindowImage[y + 2, x] != 0 or
+#                 gameWindowImage[y + 1, x + 26] != 0 or
+#                 gameWindowImage[y + 2, x + 26] != 0
+#             ):
+#                 continue
+#             bars.append((x, y))
+#             creatureIndex += 1
+#             x += 26
+#     return bars
+
+
 @njit(fastmath=True)
 def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
     bars = []
-    width = gameWindowImage.shape[1] - 27
-    height = gameWindowImage.shape[0] - 3
-    creatureIndex = 0
+    width = gameWindowImage.shape[1] - CREATURE_BAR_WIDTH
+    height = gameWindowImage.shape[0] - (CREATURE_BAR_HEIGHT - 1)
     for y in range(height):
         x = -1
         while x < width:
             x += 1
-            if gameWindowImage[y, x + 26] != 0:
-                x += 26
+            if gameWindowImage[y, x + CREATURE_BAR_LAST_X] != 0:
+                x += CREATURE_BAR_LAST_X
                 continue
             bothBordersAreBlack = True
-            for l in range(25):
-                key = x + 25 - l
-                if gameWindowImage[y, key] != 0 or gameWindowImage[y + 3, key] != 0:
+            for offset in range(CREATURE_BAR_WIDTH - 2):
+                key = x + CREATURE_BAR_INNER_LAST_X - offset
+                if (
+                    gameWindowImage[y, key] != 0 or
+                    gameWindowImage[y + CREATURE_BAR_HEIGHT - 1, key] != 0
+                ):
                     bothBordersAreBlack = False
                     x = key
                     break
@@ -104,17 +161,289 @@ def getCreaturesBars(gameWindowImage: GrayImage) -> List[tuple[int, int]]:
             if (
                 gameWindowImage[y + 1, x] != 0 or
                 gameWindowImage[y + 2, x] != 0 or
-                gameWindowImage[y + 1, x + 26] != 0 or
-                gameWindowImage[y + 2, x + 26] != 0
+                gameWindowImage[y + 1, x + CREATURE_BAR_LAST_X] != 0 or
+                gameWindowImage[y + 2, x + CREATURE_BAR_LAST_X] != 0
             ):
                 continue
             bars.append((x, y))
-            creatureIndex += 1
-            x += 26
+            x += CREATURE_BAR_LAST_X
     return bars
 
 
-# TODO: add unit tests
+# Classificador Linux anterior, preservado para comparação:
+# def getCreatureNameMatchConfidence(crop: GrayImage, template: GrayImage) -> float:
+#     if crop.shape != template.shape or crop.size == 0:
+#         return -1.0
+#     lower = max(CREATURE_NAME_TONE - CREATURE_NAME_TOLERANCE, 0)
+#     upper = min(CREATURE_NAME_TONE + CREATURE_NAME_TOLERANCE, 255)
+#     cropMask = np.where(
+#         (crop >= lower) & (crop <= upper), 255, 0).astype(np.uint8)
+#     templateMask = np.where(template == 255, 255, 0).astype(np.uint8)
+#     if np.all(cropMask == cropMask.flat[0]) or np.all(templateMask == templateMask.flat[0]):
+#         return -1.0
+#     return float(np.corrcoef(cropMask.flatten(), templateMask.flatten())[0, 1])
+
+
+def getCreatureNameMaskCorrelation(cropMask, templateMask) -> float:
+    if cropMask.shape != templateMask.shape or cropMask.size == 0:
+        return -1.0
+    cropFlat = cropMask.ravel().astype(np.float64)
+    templateFlat = templateMask.ravel().astype(np.float64)
+    if np.all(cropFlat == cropFlat[0]) or np.all(templateFlat == templateFlat[0]):
+        return -1.0
+    correlation = float(np.corrcoef(cropFlat, templateFlat)[0, 1])
+    return correlation if math.isfinite(correlation) else -1.0
+
+
+def getCreatureNameDiscriminativeAgreement(
+    cropMask,
+    templateMask,
+    discriminativeMask,
+):
+    selected = discriminativeMask.astype(bool)
+    if not np.any(selected):
+        return None
+    observed = cropMask[selected].astype(bool)
+    expected = templateMask[selected].astype(bool)
+    positives = expected
+    negatives = ~expected
+    positiveAccuracy = (
+        float(np.mean(observed[positives])) if np.any(positives) else None
+    )
+    negativeAccuracy = (
+        float(np.mean(~observed[negatives])) if np.any(negatives) else None
+    )
+    if positiveAccuracy is None:
+        return negativeAccuracy
+    if negativeAccuracy is None:
+        return positiveAccuracy
+    return (positiveAccuracy + negativeAccuracy) / 2.0
+
+
+def getCreatureNameDiscriminativeMasks(creatureNames):
+    names = [
+        name for name in dict.fromkeys(creatureNames)
+        if name in creaturesNamesHashes
+    ]
+    templates = {
+        name: (creaturesNamesHashes[name] == 255).astype(np.uint8)
+        for name in names
+    }
+    masks = {}
+    for name, templateMask in templates.items():
+        discriminativeMask = np.zeros(templateMask.shape, dtype=bool)
+        for otherName, otherTemplateMask in templates.items():
+            if otherName == name or otherTemplateMask.shape != templateMask.shape:
+                continue
+            discriminativeMask |= templateMask != otherTemplateMask
+        masks[name] = discriminativeMask
+    return masks
+
+
+def getCreatureNameMatchConfidence(
+    crop: GrayImage,
+    template: GrayImage,
+    discriminativeMask=None,
+) -> float:
+    if crop.shape != template.shape or crop.size == 0:
+        return -1.0
+    templateMask = (template == 255).astype(np.uint8)
+    if discriminativeMask is None:
+        discriminativeMask = np.zeros(templateMask.shape, dtype=bool)
+    bestConfidence = -1.0
+    for tone in CREATURE_NAME_TONES:
+        for tolerance in CREATURE_NAME_TOLERANCES:
+            lower = max(tone - tolerance, 0)
+            upper = min(tone + tolerance, 255)
+            cropMask = ((crop >= lower) & (crop <= upper)).astype(np.uint8)
+            baseConfidence = getCreatureNameMaskCorrelation(
+                cropMask, templateMask)
+            if baseConfidence < -0.999:
+                continue
+            discriminativeConfidence = getCreatureNameDiscriminativeAgreement(
+                cropMask,
+                templateMask,
+                discriminativeMask,
+            )
+            centeredDiscriminativeConfidence = (
+                (discriminativeConfidence - 0.5) * 2.0
+                if discriminativeConfidence is not None
+                else 0.0
+            )
+            confidence = baseConfidence + (
+                CREATURE_NAME_DISCRIMINATIVE_WEIGHT
+                * centeredDiscriminativeConfidence
+            )
+            if confidence > bestConfidence:
+                bestConfidence = confidence
+    return bestConfidence
+
+
+def getCreatureNameBooleanViolationRatio(
+    crop: GrayImage,
+    template: GrayImage,
+    tolerance: int,
+) -> float:
+    if crop.shape != template.shape or crop.size == 0:
+        return 1.0
+    constrainedPixels = template == 0
+    constrainedCount = int(np.count_nonzero(constrainedPixels))
+    if constrainedCount == 0:
+        return 1.0
+    allowedPixels = np.zeros(crop.shape, dtype=bool)
+    for tone in CREATURE_NAME_BOOLEAN_TONES:
+        lower = max(tone - tolerance, 0)
+        upper = min(tone + tolerance, 255)
+        allowedPixels |= (crop >= lower) & (crop <= upper)
+    violations = np.count_nonzero(~allowedPixels & constrainedPixels)
+    return float(violations / constrainedCount)
+
+
+def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
+    creatureBarX, creatureBarY = creatureBar
+    creatureBarY0 = creatureBarY - 13
+    creatureBarY1 = creatureBarY0 + 11
+    creatureNameImgHalfWidth = math.floor(creatureNameImg.shape[1] / 2)
+    leftDiff = max(creatureNameImgHalfWidth - CREATURE_BAR_LEFT_HALF, 0)
+    gapLeft = 0 if creatureBarX > leftDiff else leftDiff - creatureBarX
+    gapInnerLeft = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.ceil(
+        (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+    rightDiff = max(
+        creatureNameImg.shape[1] - creatureNameImgHalfWidth - CREATURE_BAR_RIGHT_HALF, 0)
+    gapRight = 0 if gameWindowWidth > (
+        creatureBarX + CREATURE_BAR_WIDTH + rightDiff) else creatureBarX + CREATURE_BAR_WIDTH + rightDiff - gameWindowWidth
+    gapInnerRight = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.floor(
+        (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+    alignment = CREATURE_BAR_LEFT_HALF + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+    startingX = max(0, creatureBarX - creatureNameImgHalfWidth + alignment)
+    endingX = min(gameWindowWidth, startingX + creatureNameImg.shape[1])
+    return startingX, endingX, creatureBarY0, creatureBarY1
+
+
+def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
+    scores = []
+    booleanScores = []
+    gameWindowHeight, gameWindowWidth = gameWindowImage.shape
+    discriminativeMasks = getCreatureNameDiscriminativeMasks(creatureNames)
+    for creatureName in dict.fromkeys(creatureNames):
+        template = creaturesNamesHashes.get(creatureName)
+        if template is None:
+            continue
+        startingX, endingX, startingY, endingY = getCreatureNamePosition(
+            creatureBar, template, gameWindowWidth)
+        bestConfidence = -1.0
+        bestPosition = None
+        bestBooleanRatio = 1.0
+        bestBooleanTolerance = 256
+        bestBooleanPosition = None
+        for yOffset in range(-CREATURE_NAME_MAX_POSITION_DELTA, CREATURE_NAME_MAX_POSITION_DELTA + 1):
+            y0 = startingY + yOffset
+            y1 = endingY + yOffset
+            if y0 < 0 or y1 > gameWindowHeight:
+                continue
+            for xOffset in range(-CREATURE_NAME_MAX_POSITION_DELTA, CREATURE_NAME_MAX_POSITION_DELTA + 1):
+                x0 = startingX + xOffset
+                x1 = endingX + xOffset
+                if x0 < 0 or x1 > gameWindowWidth:
+                    continue
+                crop = gameWindowImage[y0:y1, x0:x1]
+                confidence = getCreatureNameMatchConfidence(
+                    crop,
+                    template,
+                    discriminativeMasks.get(creatureName),
+                )
+                if confidence > bestConfidence:
+                    bestConfidence = confidence
+                    bestPosition = (x0, y0)
+                for tolerance in CREATURE_NAME_BOOLEAN_TOLERANCES:
+                    booleanRatio = getCreatureNameBooleanViolationRatio(
+                        crop,
+                        template,
+                        tolerance,
+                    )
+                    if (booleanRatio, tolerance) < (
+                        bestBooleanRatio,
+                        bestBooleanTolerance,
+                    ):
+                        bestBooleanRatio = booleanRatio
+                        bestBooleanTolerance = tolerance
+                        bestBooleanPosition = (x0, y0)
+        scores.append((creatureName, bestConfidence, bestPosition))
+        booleanScores.append((
+            creatureName,
+            bestBooleanRatio,
+            bestBooleanTolerance,
+            bestBooleanPosition,
+        ))
+    scores.sort(key=lambda item: item[1], reverse=True)
+    if not scores:
+        return None, -1.0, -1.0, None
+    bestName, bestConfidence, bestPosition = scores[0]
+    secondConfidence = scores[1][1] if len(scores) > 1 else -1.0
+    hasRequiredMargin = (
+        len(scores) == 1
+        or bestConfidence - secondConfidence >= CREATURE_NAME_MIN_MARGIN
+    )
+    correlationAccepted = (
+        bestConfidence >= CREATURE_NAME_MIN_CONFIDENCE
+        and hasRequiredMargin
+    )
+    if correlationAccepted:
+        return bestName, bestConfidence, secondConfidence, bestPosition
+
+    # Código Linux anterior:
+    # if bestConfidence < CREATURE_NAME_MIN_CONFIDENCE or not hasRequiredMargin:
+    #     return None, bestConfidence, secondConfidence, bestPosition
+    # return bestName, bestConfidence, secondConfidence, bestPosition
+    booleanScores.sort(key=lambda item: (item[1], item[2]))
+    if len(booleanScores) == 1:
+        (
+            booleanBestName,
+            booleanBestRatio,
+            booleanBestTolerance,
+            booleanBestPosition,
+        ) = booleanScores[0]
+        if booleanBestRatio == 0 and booleanBestTolerance == 0:
+            return (
+                booleanBestName,
+                bestConfidence,
+                secondConfidence,
+                booleanBestPosition,
+            )
+    elif len(booleanScores) >= 2:
+        (
+            booleanBestName,
+            booleanBestRatio,
+            _,
+            booleanBestPosition,
+        ) = booleanScores[0]
+        booleanSecondRatio = booleanScores[1][1]
+        booleanRatioMargin = booleanSecondRatio - booleanBestRatio
+        if (
+            booleanBestRatio <= CREATURE_NAME_BOOLEAN_MAX_VIOLATION_RATIO
+            and booleanRatioMargin >= CREATURE_NAME_BOOLEAN_MIN_RATIO_MARGIN
+        ):
+            return (
+                booleanBestName,
+                bestConfidence,
+                secondConfidence,
+                booleanBestPosition,
+            )
+    return None, bestConfidence, secondConfidence, bestPosition
+
+
+def getDeterministicCreatureName(battleListCreatures, creaturesBars):
+    if len(battleListCreatures) == 0 or len(battleListCreatures) != len(creaturesBars):
+        return None
+    creatureNames = [creature['name'] for creature in battleListCreatures]
+    if any(creatureName == 'Unknown' for creatureName in creatureNames):
+        return None
+    uniqueCreatureNames = set(creatureNames)
+    if len(uniqueCreatureNames) != 1:
+        return None
+    return creatureNames[0]
+
+
 # TODO: add perf
 # TODO: add typings
 # TODO: add name missAlignment for each creature, it avoid possible 3 calculations
@@ -137,7 +466,27 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
     creaturesBarsSortedIndexes = np.argsort(sqrt)
     discoverTarget = beingAttackedCreatureCategory is not None
     nonCreaturesForCurrentBar = {}
+    deterministicCreatureName = getDeterministicCreatureName(
+        battleListCreatures,
+        creaturesBars,
+    )
     for creatureBarSortedIndex in creaturesBarsSortedIndexes:
+        # Código Linux anterior: todas as barras repetiam a classificação visual,
+        # mesmo quando Battle List e Game Window tinham cardinalidade idêntica e
+        # somente uma espécie conhecida.
+        # normalizedCreatureName, _, _, _ = classifyCreatureName(
+        #     gameWindowImage,
+        #     creaturesBars[creatureBarSortedIndex],
+        #     [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
+        # )
+        if deterministicCreatureName is not None:
+            normalizedCreatureName = deterministicCreatureName
+        else:
+            normalizedCreatureName, _, _, _ = classifyCreatureName(
+                gameWindowImage,
+                creaturesBars[creatureBarSortedIndex],
+                [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
+            )
         for battleListIndex in range(len(battleListCreatures)):
             creatureName = battleListCreatures[battleListIndex]['name']
             if creatureName == 'Unknown':
@@ -155,17 +504,29 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             creatureBarY0 = creatureBarY - 13
             creatureBarY1 = creatureBarY0 + 11
             creatureNameImgHalfWidth = math.floor(creatureNameImg.shape[1] / 2)
-            leftDiff = max(creatureNameImgHalfWidth - 13, 0)
+            # Código original:
+            # leftDiff = max(creatureNameImgHalfWidth - 13, 0)
+            # gapInnerLeft = 0 if creatureNameImg.shape[1] > 27 else math.ceil(
+            #     (27 - creatureNameImg.shape[1]) / 2)
+            # rightDiff = max(
+            #     creatureNameImg.shape[1] - creatureNameImgHalfWidth - 14, 0)
+            # gapRight = 0 if gameWindowWidth > (
+            #     creatureBarX + 27 + rightDiff) else creatureBarX + 27 + rightDiff - gameWindowWidth
+            # gapInnerRight = 0 if creatureNameImg.shape[1] > 27 else math.floor(
+            #     (27 - creatureNameImg.shape[1]) / 2)
+            # gg = 13 + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+            leftDiff = max(
+                creatureNameImgHalfWidth - CREATURE_BAR_LEFT_HALF, 0)
             gapLeft = 0 if creatureBarX > leftDiff else leftDiff - creatureBarX
-            gapInnerLeft = 0 if creatureNameImg.shape[1] > 27 else math.ceil(
-                (27 - creatureNameImg.shape[1]) / 2)
+            gapInnerLeft = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.ceil(
+                (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
             rightDiff = max(
-                creatureNameImg.shape[1] - creatureNameImgHalfWidth - 14, 0)
+                creatureNameImg.shape[1] - creatureNameImgHalfWidth - CREATURE_BAR_RIGHT_HALF, 0)
             gapRight = 0 if gameWindowWidth > (
-                creatureBarX + 27 + rightDiff) else creatureBarX + 27 + rightDiff - gameWindowWidth
-            gapInnerRight = 0 if creatureNameImg.shape[1] > 27 else math.floor(
-                (27 - creatureNameImg.shape[1]) / 2)
-            gg = 13 + gapLeft + gapInnerLeft - gapRight - gapInnerRight
+                creatureBarX + CREATURE_BAR_WIDTH + rightDiff) else creatureBarX + CREATURE_BAR_WIDTH + rightDiff - gameWindowWidth
+            gapInnerRight = 0 if creatureNameImg.shape[1] > CREATURE_BAR_WIDTH else math.floor(
+                (CREATURE_BAR_WIDTH - creatureNameImg.shape[1]) / 2)
+            gg = CREATURE_BAR_LEFT_HALF + gapLeft + gapInnerLeft - gapRight - gapInnerRight
             startingX = max(0, creatureBarX - creatureNameImgHalfWidth + gg)
             endingX = min(gameWindowWidth, creatureBarX +
                           creatureNameImgHalfWidth + gg)
@@ -174,7 +535,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureNameImg.shape[1] != creatureWithDirtNameImg.shape[1]:
                 creatureWithDirtNameImg = gameWindowImage[creatureBarY0:creatureBarY1,
                                                           startingX:endingX + 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg, creatureNameImg):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg, creatureNameImg):
+            if normalizedCreatureName == creatureName:
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:
@@ -187,7 +550,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureNameImg2.shape[1] != creatureWithDirtNameImg2.shape[1]:
                 creatureNameImg2 = creatureNameImg2[:,
                                                     0:creatureNameImg2.shape[1] - 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg2, creatureNameImg2):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg2, creatureNameImg2):
+            if False:  # coberto pela classificação normalizada acima no Linux
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:
@@ -201,7 +566,9 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
             if creatureWithDirtNameImg3.shape[1] != creatureNameImg3.shape[1]:
                 creatureNameImg3 = creatureNameImg3[:,
                                                     0:creatureNameImg3.shape[1] - 1]
-            if hasMatrixInsideOther(creatureWithDirtNameImg3, creatureNameImg3):
+            # Código original:
+            # if hasMatrixInsideOther(creatureWithDirtNameImg3, creatureNameImg3):
+            if False:  # coberto pela classificação normalizada acima no Linux
                 creature = makeCreature(creatureName, 'monster', creaturesBars[creatureBarSortedIndex], direction, gameWindowCoordinate, gameWindowImage,
                                         coordinate, slotWidth, discoverTarget=discoverTarget, beingAttackedCreatureCategory=beingAttackedCreatureCategory, walkedPixelsInSqm=walkedPixelsInSqm)
                 if creature['isBeingAttacked']:

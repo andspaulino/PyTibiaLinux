@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-import pytest
+
 from src.gameplay.threads.pyTibia import PyTibiaThread
 
 class DummyContext:
@@ -81,3 +81,146 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
     assert potions_called == 1
     assert spells_called == 1
     assert ctx.context['pause'] is True
+
+
+def make_gameplay_context(*, cavebot_enabled=False, targeting_enabled=False, monsters=None):
+    orchestrator = MagicMock()
+    orchestrator.getCurrentTask.return_value = None
+    return {
+        'cavebot': {
+            'enabled': cavebot_enabled,
+            'closestCreature': None,
+            'isAttackingSomeCreature': False,
+            'targetCreature': None,
+            'waypoints': {'currentIndex': None, 'items': []},
+        },
+        'targeting': {
+            'enabled': targeting_enabled,
+            'walkToTarget': False,
+            'creatures': {},
+            'canIgnoreCreatures': True,
+            'hasIgnorableCreatures': False,
+        },
+        'gameWindow': {
+            'monsters': monsters or [],
+            'previousMonsters': [],
+        },
+        'radar': {'coordinate': [100, 100, 7]},
+        'loot': {'corpsesToLoot': []},
+        'tasksOrchestrator': orchestrator,
+        'way': None,
+    }
+
+
+def test_handle_gameplay_tasks_does_nothing_when_targeting_and_cavebot_are_disabled(monkeypatch):
+    context = make_gameplay_context(monsters=[{'name': 'Rat'}])
+    getClosestCreature = MagicMock()
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature', getClosestCreature)
+
+    result = PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert result is context
+    assert context['way'] is None
+    assert context['cavebot']['closestCreature'] is None
+    assert context['gameWindow']['previousMonsters'] == context['gameWindow']['monsters']
+    getClosestCreature.assert_not_called()
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
+
+
+def test_handle_gameplay_tasks_targets_without_cavebot(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        targeting_enabled=True, monsters=[monster])
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks)
+
+    result = PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert result is context
+    assert context['way'] == 'targeting'
+    assert context['cavebot']['closestCreature'] is monster
+    resolveTargetingTasks.assert_called_once_with(context)
+
+
+def test_handle_gameplay_tasks_does_not_recreate_attack_root_task(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        targeting_enabled=True, monsters=[monster])
+    currentRootTask = MagicMock(name='rootTask')
+    currentRootTask.name = 'attackClosestCreature'
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks)
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    resolveTargetingTasks.assert_not_called()
+
+
+def test_handle_gameplay_tasks_resolves_waypoint_only_when_cavebot_is_enabled(monkeypatch):
+    waypoint = {'type': 'walk', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(cavebot_enabled=True)
+    context['cavebot']['waypoints'] = {
+        'currentIndex': 0,
+        'items': [waypoint],
+    }
+    waypointTask = MagicMock(name='waypointTask')
+    resolveTasksByWaypoint = MagicMock(return_value=waypointTask)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTasksByWaypoint',
+        resolveTasksByWaypoint)
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert context['way'] == 'waypoint'
+    resolveTasksByWaypoint.assert_called_once_with(waypoint)
+    context['tasksOrchestrator'].setRootTask.assert_called_once_with(
+        context, waypointTask)
+
+
+def test_handle_gameplay_tasks_accepts_empty_waypoints(monkeypatch):
+    context = make_gameplay_context(cavebot_enabled=True)
+    resolveTasksByWaypoint = MagicMock()
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTasksByWaypoint',
+        resolveTasksByWaypoint)
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert context['way'] == 'waypoint'
+    resolveTasksByWaypoint.assert_not_called()
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
+
+
+def test_handle_gameplay_tasks_does_not_loot_when_cavebot_is_disabled(monkeypatch):
+    context = make_gameplay_context()
+    context['loot']['corpsesToLoot'] = [{'coordinate': [101, 100, 7]}]
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert context['way'] is None
+    context['tasksOrchestrator'].setRootTask.assert_not_called()

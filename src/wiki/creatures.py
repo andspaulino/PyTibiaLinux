@@ -1285,5 +1285,8 @@ creatures = {
     'Zorvorax': {'exp': 9000, 'hp': 10000},
     'Zugurosh': {'exp': 10000, 'hp': 90500},
     'Zulazza The Corruptor': {'exp': 10000, 'hp': 46500},
-    'Zushuka': {'exp': 9000, 'hp': 15000, 'gameWindowMisalignment': {'x': 16, 'y': 16}}
+    'Zushuka': {'exp': 9000, 'hp': 15000, 'gameWindowMisalignment': {'x': 16, 'y': 16}},
+    'Corrupted Ghost': {'exp': 29, 'hp': 30, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Corrupted Skeleton': {'exp': 34, 'hp': 45, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'The Corruptor': {'exp': 170, 'hp': 100, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
 }

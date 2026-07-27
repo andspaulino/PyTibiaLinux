@@ -193,6 +193,11 @@
             ]
           }
         },
+        "targeting": {
+          "enabled": true,
+          "walkToTarget": true,
+          "creatures": {}
+        },
         "comboSpells": {
           "enabled": false,
           "items": [
