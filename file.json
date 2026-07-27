@@ -195,7 +195,7 @@
         },
         "targeting": {
           "enabled": true,
-          "walkToTarget": false,
+          "walkToTarget": true,
           "creatures": {}
         },
         "comboSpells": {
