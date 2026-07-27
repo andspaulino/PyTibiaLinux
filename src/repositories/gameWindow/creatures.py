@@ -46,6 +46,10 @@ CREATURE_NAME_DISCRIMINATIVE_WEIGHT = 1.0
 CREATURE_NAME_MIN_CONFIDENCE = 0.50
 CREATURE_NAME_MIN_MARGIN = 0.05
 CREATURE_NAME_MAX_POSITION_DELTA = 4
+CREATURE_NAME_BOOLEAN_TONES = (0, 29, 57, 91, 113, 152, 170, 192)
+CREATURE_NAME_BOOLEAN_TOLERANCES = (0, 3, 8, 15)
+CREATURE_NAME_BOOLEAN_MAX_VIOLATION_RATIO = 0.005
+CREATURE_NAME_BOOLEAN_MIN_RATIO_MARGIN = 0.005
 monsters_dir = currentPath / 'images' / 'monsters'
 
 def get_gw_monster_image_path(folder: pathlib.Path, name: str) -> pathlib.Path | None:
@@ -275,6 +279,26 @@ def getCreatureNameMatchConfidence(
     return bestConfidence
 
 
+def getCreatureNameBooleanViolationRatio(
+    crop: GrayImage,
+    template: GrayImage,
+    tolerance: int,
+) -> float:
+    if crop.shape != template.shape or crop.size == 0:
+        return 1.0
+    constrainedPixels = template == 0
+    constrainedCount = int(np.count_nonzero(constrainedPixels))
+    if constrainedCount == 0:
+        return 1.0
+    allowedPixels = np.zeros(crop.shape, dtype=bool)
+    for tone in CREATURE_NAME_BOOLEAN_TONES:
+        lower = max(tone - tolerance, 0)
+        upper = min(tone + tolerance, 255)
+        allowedPixels |= (crop >= lower) & (crop <= upper)
+    violations = np.count_nonzero(~allowedPixels & constrainedPixels)
+    return float(violations / constrainedCount)
+
+
 def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
     creatureBarX, creatureBarY = creatureBar
     creatureBarY0 = creatureBarY - 13
@@ -298,6 +322,7 @@ def getCreatureNamePosition(creatureBar, creatureNameImg, gameWindowWidth):
 
 def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
     scores = []
+    booleanScores = []
     gameWindowHeight, gameWindowWidth = gameWindowImage.shape
     discriminativeMasks = getCreatureNameDiscriminativeMasks(creatureNames)
     for creatureName in dict.fromkeys(creatureNames):
@@ -308,6 +333,9 @@ def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
             creatureBar, template, gameWindowWidth)
         bestConfidence = -1.0
         bestPosition = None
+        bestBooleanRatio = 1.0
+        bestBooleanTolerance = 256
+        bestBooleanPosition = None
         for yOffset in range(-CREATURE_NAME_MAX_POSITION_DELTA, CREATURE_NAME_MAX_POSITION_DELTA + 1):
             y0 = startingY + yOffset
             y1 = endingY + yOffset
@@ -327,7 +355,26 @@ def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
                 if confidence > bestConfidence:
                     bestConfidence = confidence
                     bestPosition = (x0, y0)
+                for tolerance in CREATURE_NAME_BOOLEAN_TOLERANCES:
+                    booleanRatio = getCreatureNameBooleanViolationRatio(
+                        crop,
+                        template,
+                        tolerance,
+                    )
+                    if (booleanRatio, tolerance) < (
+                        bestBooleanRatio,
+                        bestBooleanTolerance,
+                    ):
+                        bestBooleanRatio = booleanRatio
+                        bestBooleanTolerance = tolerance
+                        bestBooleanPosition = (x0, y0)
         scores.append((creatureName, bestConfidence, bestPosition))
+        booleanScores.append((
+            creatureName,
+            bestBooleanRatio,
+            bestBooleanTolerance,
+            bestBooleanPosition,
+        ))
     scores.sort(key=lambda item: item[1], reverse=True)
     if not scores:
         return None, -1.0, -1.0, None
@@ -337,9 +384,64 @@ def classifyCreatureName(gameWindowImage, creatureBar, creatureNames):
         len(scores) == 1
         or bestConfidence - secondConfidence >= CREATURE_NAME_MIN_MARGIN
     )
-    if bestConfidence < CREATURE_NAME_MIN_CONFIDENCE or not hasRequiredMargin:
-        return None, bestConfidence, secondConfidence, bestPosition
-    return bestName, bestConfidence, secondConfidence, bestPosition
+    correlationAccepted = (
+        bestConfidence >= CREATURE_NAME_MIN_CONFIDENCE
+        and hasRequiredMargin
+    )
+    if correlationAccepted:
+        return bestName, bestConfidence, secondConfidence, bestPosition
+
+    # Código Linux anterior:
+    # if bestConfidence < CREATURE_NAME_MIN_CONFIDENCE or not hasRequiredMargin:
+    #     return None, bestConfidence, secondConfidence, bestPosition
+    # return bestName, bestConfidence, secondConfidence, bestPosition
+    booleanScores.sort(key=lambda item: (item[1], item[2]))
+    if len(booleanScores) == 1:
+        (
+            booleanBestName,
+            booleanBestRatio,
+            booleanBestTolerance,
+            booleanBestPosition,
+        ) = booleanScores[0]
+        if booleanBestRatio == 0 and booleanBestTolerance == 0:
+            return (
+                booleanBestName,
+                bestConfidence,
+                secondConfidence,
+                booleanBestPosition,
+            )
+    elif len(booleanScores) >= 2:
+        (
+            booleanBestName,
+            booleanBestRatio,
+            _,
+            booleanBestPosition,
+        ) = booleanScores[0]
+        booleanSecondRatio = booleanScores[1][1]
+        booleanRatioMargin = booleanSecondRatio - booleanBestRatio
+        if (
+            booleanBestRatio <= CREATURE_NAME_BOOLEAN_MAX_VIOLATION_RATIO
+            and booleanRatioMargin >= CREATURE_NAME_BOOLEAN_MIN_RATIO_MARGIN
+        ):
+            return (
+                booleanBestName,
+                bestConfidence,
+                secondConfidence,
+                booleanBestPosition,
+            )
+    return None, bestConfidence, secondConfidence, bestPosition
+
+
+def getDeterministicCreatureName(battleListCreatures, creaturesBars):
+    if len(battleListCreatures) == 0 or len(battleListCreatures) != len(creaturesBars):
+        return None
+    creatureNames = [creature['name'] for creature in battleListCreatures]
+    if any(creatureName == 'Unknown' for creatureName in creatureNames):
+        return None
+    uniqueCreatureNames = set(creatureNames)
+    if len(uniqueCreatureNames) != 1:
+        return None
+    return creatureNames[0]
 
 
 # TODO: add perf
@@ -364,12 +466,27 @@ def getCreatures(battleListCreatures, direction, gameWindowCoordinate: XYCoordin
     creaturesBarsSortedIndexes = np.argsort(sqrt)
     discoverTarget = beingAttackedCreatureCategory is not None
     nonCreaturesForCurrentBar = {}
+    deterministicCreatureName = getDeterministicCreatureName(
+        battleListCreatures,
+        creaturesBars,
+    )
     for creatureBarSortedIndex in creaturesBarsSortedIndexes:
-        normalizedCreatureName, _, _, _ = classifyCreatureName(
-            gameWindowImage,
-            creaturesBars[creatureBarSortedIndex],
-            [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
-        )
+        # Código Linux anterior: todas as barras repetiam a classificação visual,
+        # mesmo quando Battle List e Game Window tinham cardinalidade idêntica e
+        # somente uma espécie conhecida.
+        # normalizedCreatureName, _, _, _ = classifyCreatureName(
+        #     gameWindowImage,
+        #     creaturesBars[creatureBarSortedIndex],
+        #     [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
+        # )
+        if deterministicCreatureName is not None:
+            normalizedCreatureName = deterministicCreatureName
+        else:
+            normalizedCreatureName, _, _, _ = classifyCreatureName(
+                gameWindowImage,
+                creaturesBars[creatureBarSortedIndex],
+                [creature['name'] for creature in battleListCreatures if creature['name'] != 'Unknown'],
+            )
         for battleListIndex in range(len(battleListCreatures)):
             creatureName = battleListCreatures[battleListIndex]['name']
             if creatureName == 'Unknown':
