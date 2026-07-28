@@ -6,6 +6,9 @@ class DummyContext:
     def __init__(self, context_dict):
         self.context = context_dict
 
+class TestLoopStop(BaseException):
+    pass
+
 class CustomDict(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -15,18 +18,22 @@ class CustomDict(dict):
         if key == 'pause':
             self.call_count += 1
             if self.call_count > 2:
-                raise KeyboardInterrupt()
+                raise TestLoopStop()
         return super().__getitem__(key)
 
 def test_pytibia_thread_loop_respects_pause(monkeypatch):
     sleep_calls = []
     monkeypatch.setattr("src.gameplay.threads.pyTibia.sleep", lambda seconds: sleep_calls.append(seconds))
 
-    context_dict = CustomDict({'pause': True})
+    context_dict = CustomDict({'pause': True, 'window': 'Tibia'})
     ctx = DummyContext(context_dict)
     thread = PyTibiaThread(ctx)
 
-    thread.mainloop()
+    try:
+        thread.mainloop()
+    except TestLoopStop:
+        pass
+
     assert len(sleep_calls) >= 1
     assert all(s == 0.1 for s in sleep_calls)
 
@@ -37,17 +44,38 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
     
     context_dict = {
         'pause': False,
+        'window': 'Tibia',
         'tasksOrchestrator': orchestrator,
         'statusBar': {'hpPercentage': 100, 'hp': 200, 'manaPercentage': 100, 'mana': 100},
-        'screenshot': None
+        'screenshot': None,
+        'radar': {'coordinate': [100, 100, 7]},
+        'cavebot': {'enabled': False, 'closestCreature': None, 'waypoints': {'currentIndex': None, 'items': []}},
+        'targeting': {'enabled': False},
+        'loot': {'corpsesToLoot': [], 'enabled': False},
     }
     ctx = DummyContext(context_dict)
     thread = PyTibiaThread(ctx)
 
-    # Mock the middlewares
+    # Mock all middlewares in handleGameData
+    middlewares = [
+        "setScreenshotMiddleware",
+        "setRadarMiddleware",
+        "setChatTabsMiddleware",
+        "setBattleListMiddleware",
+        "setGameWindowMiddleware",
+        "setDirectionMiddleware",
+        "setGameWindowCreaturesMiddleware",
+        "setLootHighlightingMiddleware",
+        "setHandleLootMiddleware",
+        "setWaypointIndexMiddleware",
+        "setMapPlayerStatusMiddleware",
+        "setCleanUpTasksMiddleware",
+    ]
     mock_set_screenshot = MagicMock(return_value=context_dict)
     mock_set_player_status = MagicMock(return_value=context_dict)
     mock_set_cleanup = MagicMock(return_value=context_dict)
+    for middleware in middlewares:
+        monkeypatch.setattr(f"src.gameplay.threads.pyTibia.{middleware}", MagicMock(return_value=context_dict))
     monkeypatch.setattr("src.gameplay.threads.pyTibia.setScreenshotMiddleware", mock_set_screenshot)
     monkeypatch.setattr("src.gameplay.threads.pyTibia.setMapPlayerStatusMiddleware", mock_set_player_status)
     monkeypatch.setattr("src.gameplay.threads.pyTibia.setCleanUpTasksMiddleware", mock_set_cleanup)
@@ -63,16 +91,20 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
         spells_called += 1
         # Pause after first iteration to stop the loop
         c['pause'] = True
-        raise KeyboardInterrupt() # Force exit
+        raise TestLoopStop() # Force exit
 
     monkeypatch.setattr("src.gameplay.threads.pyTibia.healingByPotions", mock_potions)
     monkeypatch.setattr("src.gameplay.threads.pyTibia.healingBySpells", mock_spells)
+    monkeypatch.setattr("src.gameplay.threads.pyTibia.comboSpells", MagicMock())
     monkeypatch.setattr("src.gameplay.threads.pyTibia.swapAmulet", MagicMock())
     monkeypatch.setattr("src.gameplay.threads.pyTibia.swapRing", MagicMock())
     monkeypatch.setattr("src.gameplay.threads.pyTibia.eatFood", MagicMock())
     monkeypatch.setattr("src.gameplay.threads.pyTibia.sleep", MagicMock())
 
-    thread.mainloop()
+    try:
+        thread.mainloop()
+    except TestLoopStop:
+        pass
 
     assert mock_set_screenshot.call_count == 1
     assert mock_set_player_status.call_count == 1

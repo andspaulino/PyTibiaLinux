@@ -70,7 +70,10 @@ class PyTibiaThread:
                 endTime = time()
                 diff = endTime - startTime
                 sleep(max(0.045 - diff, 0))
-            except:
+            # Código Linux anterior (Marco 2.6):
+            # except:
+            #     print('An exception occurred:', traceback.format_exc())
+            except Exception:
                 print('An exception occurred:', traceback.format_exc())
 
     def handleGameData(self, context):

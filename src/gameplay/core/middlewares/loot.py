@@ -61,11 +61,18 @@ def _updatePendingSlots(context, lootState):
         for item in lootState['pendingHighlightSlots']
         if tuple(item['slot']) not in currentSlots
     }
+    # Código Linux anterior (Marco 8.7):
+    # for slot in disappearedSlots:
+    #     pendingBySlot[slot] = {
+    #         'slot': slot,
+    #         'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
+    #     }
     for slot in disappearedSlots:
-        pendingBySlot[slot] = {
-            'slot': slot,
-            'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
-        }
+        if slot in QUICK_LOOT_NEARBY_SLOTS:
+            pendingBySlot[slot] = {
+                'slot': slot,
+                'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
+            }
     lootState['pendingHighlightSlots'] = list(pendingBySlot.values())
 
     previousTarget = context.get('cavebot', {}).get('previousTargetCreature')
@@ -226,15 +233,24 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
         tuple(item['slot'])
         for item in remainingPending
     }
+    # Código Linux anterior (Marco 8.7):
+    # blockingSlot = lootState.get('quickLootBlockingSlot')
+    # if (
+    #     blockingSlot is not None
+    #     and tuple(blockingSlot) not in remainingPendingSlots
+    #     and not lootState['quickLootReady']
+    #     and not lootState['quickLootAwaitingConfirmation']
+    # ):
+    #     lootState['quickLootDetectionPending'] = False
+    #     lootState['quickLootBlockingSlot'] = None
     blockingSlot = lootState.get('quickLootBlockingSlot')
     if (
-        blockingSlot is not None
-        and tuple(blockingSlot) not in remainingPendingSlots
-        and not lootState['quickLootReady']
+        not lootState['quickLootReady']
         and not lootState['quickLootAwaitingConfirmation']
     ):
-        lootState['quickLootDetectionPending'] = False
-        lootState['quickLootBlockingSlot'] = None
+        if blockingSlot is None or tuple(blockingSlot) not in remainingPendingSlots:
+            lootState['quickLootDetectionPending'] = False
+            lootState['quickLootBlockingSlot'] = None
 
     lootState['highlightedSlots'] = candidates
     lootState['ambientSlots'] = ambient

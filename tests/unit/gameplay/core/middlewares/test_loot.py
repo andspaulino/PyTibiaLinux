@@ -177,3 +177,49 @@ def test_disappeared_non_target_does_not_block_walk_to_target():
 
     assert context["loot"].get("quickLootDetectionPending", False) is False
     assert context["loot"].get("quickLootBlockingSlot") is None
+
+
+def test_pending_slots_only_accepts_nearby_slots():
+    distantMonster = {"slot": (14, 9), "isBeingAttacked": False}
+    nearbyMonster = {"slot": (8, 5), "isBeingAttacked": False}
+    context = make_context()
+    context["loot"]["pendingHighlightSlots"] = []
+    context["gameWindow"].update({
+        "previousMonsters": [distantMonster, nearbyMonster],
+        "monsters": [],
+    })
+
+    loot_middleware._updatePendingSlots(context, context["loot"])
+
+    pending_slots = [item["slot"] for item in context["loot"]["pendingHighlightSlots"]]
+    assert (8, 5) in pending_slots
+    assert (14, 9) not in pending_slots
+
+
+def test_quick_loot_pending_cleared_when_blocking_slot_is_none_and_not_ready(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "quickLootDetectionPending": True,
+        "quickLootBlockingSlot": None,
+        "quickLootReady": False,
+        "quickLootAwaitingConfirmation": False,
+        "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootDetectionPending"] is False
+    assert context["loot"]["quickLootBlockingSlot"] is None
+
