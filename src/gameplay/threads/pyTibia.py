@@ -263,42 +263,39 @@ class PyTibiaThread:
 
         now = time()
         isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
-        isQuickLootReady = quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown
-        # Código Linux anterior (Marco 8.7):
+        isQuickLootReady = (
+            quickLootEnabled
+            and lootState.get('quickLootReady', False)
+            and not isQuickLootInCooldown
+        )
+        hasHighlightedCandidates = (
+            len(lootState.get('highlightedSlots', [])) > 0
+        )
+        # Código Linux anterior: só bloqueava depois dos 12 frames, quando já
+        # havia highlight, e liberava durante o cooldown/confirmação. Com
+        # `walkToTarget`, o corpse podia sair do `3×3` antes do Quick Loot.
         # isQuickLootPending = (
         #     quickLootEnabled
         #     and lootState.get('quickLootDetectionPending', False)
         #     and not isQuickLootInCooldown
+        #     and hasHighlightedCandidates
         # )
-
-        hasHighlightedCandidates = len(lootState.get('highlightedSlots', [])) > 0
         isQuickLootPending = (
             quickLootEnabled
             and lootState.get('quickLootDetectionPending', False)
-            and not isQuickLootInCooldown
-            and hasHighlightedCandidates
+            and (
+                lootState.get('quickLootBlockingSlot') is not None
+                or lootState.get('quickLootAwaitingConfirmation', False)
+                or hasHighlightedCandidates
+            )
         )
-        # Código Linux anterior (Marco 8.7):
-        # hasCreaturesToAttackAfterCheck = (
-        #     targetingEnabled
-        #     and context['cavebot']['closestCreature'] is not None
-        #     and hasCreaturesToAttack(context)
-        # )
 
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
             and hasCreaturesToAttack(context)
         )
 
-        if hasCreaturesToAttackAfterCheck and not isQuickLootReady:
-            context['way'] = 'targeting'
-            if shouldAskForTargetingTasks(context):
-                currentRootTask = currentTask.rootTask if currentTask is not None else None
-                isTryingToAttackClosestCreature = currentRootTask is not None and (
-                    currentRootTask.name == 'attackClosestCreature')
-                if not isTryingToAttackClosestCreature:
-                    context = resolveTargetingTasks(context)
-        elif isQuickLootPending and not isQuickLootReady:
+        if isQuickLootPending and not isQuickLootReady:
             context['way'] = 'lootPending'
             currentRootTask = (
                 currentTask.rootTask

@@ -138,6 +138,7 @@ context = {
         'quickLootBlockingSlot': None,
         'quickLootAwaitingConfirmation': False,
         'quickLootConfirmationBatches': 0,
+        'quickLootAbsenceBatches': 0,
         'quickLootRetryCount': 0,
         'quickLootMaxRetries': 2,
         'highlightFrames': [],

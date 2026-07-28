@@ -283,18 +283,64 @@ def test_quick_loot_confirmation_checks_attempt_slots(monkeypatch):
     for _ in range(12):
         loot_middleware.setLootHighlightingMiddleware(context)
 
+    assert context["loot"]["quickLootAwaitingConfirmation"] is True
+    assert context["loot"]["quickLootAbsenceBatches"] == 1
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
     assert context["loot"]["quickLootAwaitingConfirmation"] is False
     assert context["loot"]["quickLootRetryCount"] == 0
     assert context["loot"]["quickLootDetectionPending"] is False
     assert context["loot"]["pendingHighlightSlots"] == []
 
 
-def test_slot_cooldown_prevents_retrigger(monkeypatch):
+def test_new_candidate_is_preserved_when_previous_attempt_is_confirmed(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootAttemptSlots": [(8, 5)],
+        "quickLootRetryCount": 1,
+        "pendingHighlightSlots": [
+            {"slot": (8, 5), "remainingBatches": 6},
+            {"slot": (8, 4), "remainingBatches": 6},
+        ],
+    })
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [
+                {"slot": (8, 4), "motionPixels": 1200, "method": "magnitude"},
+            ],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(24):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootAwaitingConfirmation"] is False
+    assert context["loot"]["quickLootReady"] is True
+    assert context["loot"]["quickLootDetectionPending"] is True
+    assert [
+        item["slot"]
+        for item in context["loot"]["pendingHighlightSlots"]
+    ] == [(8, 4)]
+
+
+def test_slot_cooldown_does_not_hide_confirmation_candidate(monkeypatch):
     import time
     context = make_context()
     now = time.time()
     context["loot"].update({
         "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootAttemptSlots": [(8, 5)],
+        "quickLootRetryCount": 1,
         "slotCooldowns": {(8, 5): now + 10.0},
         "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
     })
@@ -313,8 +359,57 @@ def test_slot_cooldown_prevents_retrigger(monkeypatch):
     for _ in range(12):
         loot_middleware.setLootHighlightingMiddleware(context)
 
-    assert context["loot"]["quickLootReady"] is False
-    assert context["loot"]["highlightedSlots"] == []
+    assert context["loot"]["quickLootAwaitingConfirmation"] is True
+    assert context["loot"]["quickLootConfirmationBatches"] == 1
+    assert context["loot"]["highlightedSlots"][0]["slot"] == (8, 5)
+
+
+def test_rejected_classification_does_not_confirm_quick_loot(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootAttemptSlots": [(8, 5)],
+        "quickLootRetryCount": 1,
+    })
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": False,
+            "failureReason": "global-motion",
+            "candidates": [],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootAwaitingConfirmation"] is True
+    assert context["loot"]["quickLootRetryCount"] == 1
+
+
+def test_hybrid_loot_updates_chat_loot_timestamp(monkeypatch):
+    import numpy as np
+    context = make_context()
+    context["screenshot"] = np.zeros((100, 100), dtype=np.uint8)
+    context["loot"].update({
+        "enabled": True,
+        "monitorHighlighting": False,
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "hasNewLoot",
+        lambda screenshot: True,
+    )
+
+    loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert "lastChatLootTime" in context["loot"]
+    assert context["loot"]["hasRecentChatLoot"] is True
+
 
 
 
