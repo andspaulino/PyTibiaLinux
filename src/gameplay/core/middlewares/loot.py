@@ -25,6 +25,8 @@ def _resetLootHighlightState(lootState):
     lootState['highlightFailureReason'] = None
     lootState['lastHighlightSignature'] = None
     lootState['quickLootReady'] = False
+    lootState['quickLootDetectionPending'] = False
+    lootState['quickLootBlockingSlot'] = None
     lootState['quickLootAwaitingConfirmation'] = False
     lootState['quickLootConfirmationBatches'] = 0
     lootState['quickLootRetryCount'] = 0
@@ -50,7 +52,8 @@ def _getCreatureSlots(creatures):
 def _updatePendingSlots(context, lootState):
     gameWindowState = context.get('gameWindow', {})
     previousSlots = _getCreatureSlots(gameWindowState.get('previousMonsters', []))
-    currentSlots = _getCreatureSlots(gameWindowState.get('monsters', []))
+    currentMonsters = gameWindowState.get('monsters', [])
+    currentSlots = _getCreatureSlots(currentMonsters)
     disappearedSlots = previousSlots - currentSlots
 
     pendingBySlot = {
@@ -65,6 +68,24 @@ def _updatePendingSlots(context, lootState):
         }
     lootState['pendingHighlightSlots'] = list(pendingBySlot.values())
 
+    previousTarget = context.get('cavebot', {}).get('previousTargetCreature')
+    currentTargetExists = any(
+        creature.get('isBeingAttacked', False)
+        for creature in currentMonsters
+    )
+    if previousTarget is None or currentTargetExists:
+        return
+    previousTargetSlot = previousTarget.get('slot')
+    if previousTargetSlot is None:
+        return
+    previousTargetSlot = tuple(previousTargetSlot)
+    if (
+        previousTargetSlot in disappearedSlots
+        and previousTargetSlot in QUICK_LOOT_NEARBY_SLOTS
+    ):
+        lootState['quickLootDetectionPending'] = True
+        lootState['quickLootBlockingSlot'] = previousTargetSlot
+
 
 def setLootHighlightingMiddleware(context: Context) -> Context:
     lootState = context.setdefault('loot', {})
@@ -76,6 +97,8 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
     lootState.setdefault('highlightFailureReason', None)
     lootState.setdefault('lastHighlightSignature', None)
     lootState.setdefault('quickLootReady', False)
+    lootState.setdefault('quickLootDetectionPending', False)
+    lootState.setdefault('quickLootBlockingSlot', None)
     lootState.setdefault('quickLootAwaitingConfirmation', False)
     lootState.setdefault('quickLootConfirmationBatches', 0)
     lootState.setdefault('quickLootRetryCount', 0)
@@ -92,6 +115,12 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
     ]
     if len(pendingSlots) == 0:
         _resetFrameBuffer(lootState)
+        if (
+            not lootState.get('quickLootAwaitingConfirmation', False)
+            and not lootState.get('quickLootReady', False)
+        ):
+            lootState['quickLootDetectionPending'] = False
+            lootState['quickLootBlockingSlot'] = None
         if lootState['highlightedSlots']:
             lootState['highlightedSlots'] = []
             signature = _getHighlightSignature([], None)
@@ -105,10 +134,12 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
     if gameWindowImage is None:
         _resetFrameBuffer(lootState)
         lootState['highlightFailureReason'] = 'game-window-unavailable'
+        lootState['quickLootDetectionPending'] = False
         return context
     if radarCoordinate is None:
         _resetFrameBuffer(lootState)
         lootState['highlightFailureReason'] = 'radar-unavailable'
+        lootState['quickLootDetectionPending'] = False
         return context
 
     frameCoordinate = lootState['highlightFrameCoordinate']
@@ -146,6 +177,8 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
                 lootState['quickLootConfirmationBatches'] = 0
                 lootState['quickLootRetryCount'] = 0
                 lootState['quickLootReady'] = False
+                lootState['quickLootDetectionPending'] = False
+                lootState['quickLootBlockingSlot'] = None
                 lootState['pendingHighlightSlots'] = [
                     item
                     for item in lootState['pendingHighlightSlots']
@@ -165,14 +198,18 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
                         < lootState['quickLootMaxRetries']
                     ):
                         lootState['quickLootReady'] = True
+                        lootState['quickLootDetectionPending'] = True
                     else:
                         lootState['quickLootReady'] = False
+                        lootState['quickLootDetectionPending'] = False
+                        lootState['quickLootBlockingSlot'] = None
                         lootState['highlightFailureReason'] = (
                             'quick-loot-not-confirmed'
                         )
                         print('[Loot] Quick Loot não confirmado; retries esgotados')
         elif len(nearbyConfirmedSlots) > 0:
             lootState['quickLootReady'] = True
+            lootState['quickLootDetectionPending'] = True
 
     remainingPending = []
     for item in lootState['pendingHighlightSlots']:
@@ -185,6 +222,19 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
         if item['remainingBatches'] > 0:
             remainingPending.append(item)
     lootState['pendingHighlightSlots'] = remainingPending
+    remainingPendingSlots = {
+        tuple(item['slot'])
+        for item in remainingPending
+    }
+    blockingSlot = lootState.get('quickLootBlockingSlot')
+    if (
+        blockingSlot is not None
+        and tuple(blockingSlot) not in remainingPendingSlots
+        and not lootState['quickLootReady']
+        and not lootState['quickLootAwaitingConfirmation']
+    ):
+        lootState['quickLootDetectionPending'] = False
+        lootState['quickLootBlockingSlot'] = None
 
     lootState['highlightedSlots'] = candidates
     lootState['ambientSlots'] = ambient

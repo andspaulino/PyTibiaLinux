@@ -13,11 +13,13 @@ def make_context(*, monitor=True, image=FRAME):
             "enabled": False,
             "monitorHighlighting": monitor,
             "highlightFrames": [],
+            "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
             "highlightedSlots": [],
             "ambientSlots": [],
             "highlightFailureReason": None,
             "lastHighlightSignature": None,
         },
+        "radar": {"coordinate": [100, 100, 7]},
         "gameWindow": {"image": image},
     }
 
@@ -55,7 +57,7 @@ def test_middleware_waits_for_twelve_frames_before_classifying(monkeypatch):
     monkeypatch.setattr(
         loot_middleware,
         "classifyLootHighlightSlots",
-        lambda frames: calls.append(frames) or accepted_classification(),
+        lambda frames, *args, **kwargs: calls.append(frames) or accepted_classification(),
     )
 
     for _ in range(11):
@@ -77,7 +79,7 @@ def test_middleware_logs_only_when_candidate_slots_change(monkeypatch, capsys):
     monkeypatch.setattr(
         loot_middleware,
         "classifyLootHighlightSlots",
-        lambda frames: accepted_classification(),
+        lambda frames, *args, **kwargs: accepted_classification(),
     )
 
     for _ in range(12):
@@ -96,7 +98,7 @@ def test_global_motion_rejection_is_exposed_in_context(monkeypatch):
     monkeypatch.setattr(
         loot_middleware,
         "classifyLootHighlightSlots",
-        lambda frames: {
+        lambda frames, *args, **kwargs: {
             "accepted": False,
             "failureReason": "global-motion",
             "candidates": [],
@@ -141,3 +143,37 @@ def test_disabled_legacy_loot_preserves_shared_target_tracking(monkeypatch):
 
     assert result["cavebot"]["targetCreature"] == monster
     assert result["cavebot"]["previousTargetCreature"] == monster
+
+
+def test_only_disappeared_target_blocks_walk_to_target():
+    target = {"slot": (8, 5), "isBeingAttacked": True}
+    otherMonster = {"slot": (6, 5), "isBeingAttacked": False}
+    context = make_context()
+    context["loot"]["pendingHighlightSlots"] = []
+    context["cavebot"] = {"previousTargetCreature": target}
+    context["gameWindow"].update({
+        "previousMonsters": [target, otherMonster],
+        "monsters": [otherMonster],
+    })
+
+    loot_middleware._updatePendingSlots(context, context["loot"])
+
+    assert context["loot"]["quickLootDetectionPending"] is True
+    assert context["loot"]["quickLootBlockingSlot"] == (8, 5)
+
+
+def test_disappeared_non_target_does_not_block_walk_to_target():
+    target = {"slot": (8, 5), "isBeingAttacked": True}
+    otherMonster = {"slot": (6, 5), "isBeingAttacked": False}
+    context = make_context()
+    context["loot"]["pendingHighlightSlots"] = []
+    context["cavebot"] = {"previousTargetCreature": target}
+    context["gameWindow"].update({
+        "previousMonsters": [target, otherMonster],
+        "monsters": [target],
+    })
+
+    loot_middleware._updatePendingSlots(context, context["loot"])
+
+    assert context["loot"].get("quickLootDetectionPending", False) is False
+    assert context["loot"].get("quickLootBlockingSlot") is None

@@ -208,13 +208,46 @@ class PyTibiaThread:
             context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
             return context
 
+        # Código Linux anterior (Marco 8.5):
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+        # if hasCreaturesToAttackAfterCheck:
+        #     context['way'] = 'targeting'
+        #     if shouldAskForTargetingTasks(context):
+        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
+        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
+        #             currentRootTask.name == 'attackClosestCreature')
+        #         if not isTryingToAttackClosestCreature:
+        #             context = resolveTargetingTasks(context)
+
+        isQuickLootPending = (
+            quickLootEnabled
+            and lootState.get('quickLootDetectionPending', False)
+        )
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
             and context['cavebot']['closestCreature'] is not None
             and hasCreaturesToAttack(context)
         )
 
-        if hasCreaturesToAttackAfterCheck:
+        if isQuickLootPending and not lootState.get('quickLootReady', False):
+            # Durante a classificação, interrompe somente a árvore de Targeting
+            # ativa. Healing e observers continuam no loop principal.
+            context['way'] = 'lootPending'
+            currentRootTask = (
+                currentTask.rootTask
+                if currentTask is not None and currentTask.rootTask is not None
+                else currentTask
+            )
+            if (
+                currentRootTask is not None
+                and currentRootTask.name == 'attackClosestCreature'
+            ):
+                context['tasksOrchestrator'].setRootTask(context, None)
+        elif hasCreaturesToAttackAfterCheck:
             context['way'] = 'targeting'
             if shouldAskForTargetingTasks(context):
                 currentRootTask = currentTask.rootTask if currentTask is not None else None

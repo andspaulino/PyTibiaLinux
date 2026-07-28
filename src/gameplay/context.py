@@ -134,6 +134,8 @@ context = {
         'quickLootMethod': 'hotkey',
         'quickLootHotkey': 'alt+q',
         'quickLootReady': False,
+        'quickLootDetectionPending': False,
+        'quickLootBlockingSlot': None,
         'quickLootAwaitingConfirmation': False,
         'quickLootConfirmationBatches': 0,
         'quickLootRetryCount': 0,
