@@ -317,4 +317,26 @@ def test_slot_cooldown_prevents_retrigger(monkeypatch):
     assert context["loot"]["highlightedSlots"] == []
 
 
+def test_hybrid_loot_updates_chat_loot_timestamp(monkeypatch):
+    import numpy as np
+    context = make_context()
+    context["screenshot"] = np.zeros((100, 100), dtype=np.uint8)
+    context["loot"].update({
+        "enabled": True,
+        "monitorHighlighting": False,
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "hasNewLoot",
+        lambda screenshot: True,
+    )
+
+    loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert "lastChatLootTime" in context["loot"]
+    assert context["loot"]["hasRecentChatLoot"] is True
+
+
+
 

@@ -1,6 +1,7 @@
 from time import time
 import src.utils.keyboard as utilsKeyboard
 from ...typings import Context
+from ..middlewares.loot import QUICK_LOOT_NEARBY_SLOTS
 from .common.base import BaseTask
 
 
@@ -64,7 +65,10 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         lootState['quickLootDetectionPending'] = False
         lootState['quickLootBlockingSlot'] = None
         slotCooldowns = lootState.setdefault('slotCooldowns', {})
-        for slot in slots:
+        # Código Linux anterior (Marco 8.7):
+        # for slot in slots:
+        #     slotCooldowns[tuple(slot)] = now + 3.0
+        for slot in QUICK_LOOT_NEARBY_SLOTS:
             slotCooldowns[tuple(slot)] = now + 3.0
         print(
             f"[Loot] Quick Loot enviado por {hotkey} "

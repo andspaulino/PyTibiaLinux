@@ -1,4 +1,5 @@
 from time import time
+from src.repositories.chat.core import hasNewLoot
 from src.repositories.gameWindow.loot import classifyLootHighlightSlots
 from ...typings import Context
 
@@ -116,6 +117,13 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
     lootState.setdefault('quickLootConfirmationBatches', 0)
     lootState.setdefault('quickLootRetryCount', 0)
     lootState.setdefault('quickLootMaxRetries', 2)
+
+    now = time()
+    screenshot = context.get('screenshot')
+    if screenshot is not None and hasNewLoot(screenshot):
+        lootState['lastChatLootTime'] = now
+    hasRecentChatLoot = (now - lootState.get('lastChatLootTime', 0)) < 1.5
+    lootState['hasRecentChatLoot'] = hasRecentChatLoot
 
     if not lootState.get('monitorHighlighting', False):
         _resetLootHighlightState(lootState)
@@ -246,7 +254,9 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
                 lootState['quickLootDetectionPending'] = False
                 lootState['quickLootBlockingSlot'] = None
                 lootState['quickLootAttemptSlots'] = []
-                slotsToRemove = targetSlotsToCheck if len(targetSlotsToCheck) > 0 else QUICK_LOOT_NEARBY_SLOTS
+                # Código Linux anterior (Marco 8.7):
+                # slotsToRemove = targetSlotsToCheck if len(targetSlotsToCheck) > 0 else QUICK_LOOT_NEARBY_SLOTS
+                slotsToRemove = QUICK_LOOT_NEARBY_SLOTS
                 lootState['pendingHighlightSlots'] = [
                     item
                     for item in lootState['pendingHighlightSlots']
