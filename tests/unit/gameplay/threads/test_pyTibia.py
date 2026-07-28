@@ -259,7 +259,7 @@ def test_handle_gameplay_tasks_does_not_loot_when_cavebot_is_disabled(monkeypatc
     context['tasksOrchestrator'].setRootTask.assert_not_called()
 
 
-def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_creatures_exist(monkeypatch):
+def test_handle_gameplay_tasks_pauses_targeting_for_blocking_loot_even_when_creatures_exist(monkeypatch):
     monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
     context = make_gameplay_context(
         targeting_enabled=True, monsters=[monster])
@@ -267,6 +267,7 @@ def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_crea
         'enabled': True,
         'mode': 'quickLoot',
         'quickLootDetectionPending': True,
+        'quickLootBlockingSlot': (8, 5),
         'quickLootReady': False,
         'corpsesToLoot': [],
     }
@@ -288,12 +289,12 @@ def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_crea
     result = PyTibiaThread(None).handleGameplayTasks(context)
 
     assert result is context
-    assert context['way'] == 'targeting'
+    assert context['way'] == 'lootPending'
     context['tasksOrchestrator'].setRootTask.assert_not_called()
-    resolveTargetingTasks.assert_called_once_with(context)
+    resolveTargetingTasks.assert_not_called()
 
 
-def test_handle_gameplay_tasks_prioritizes_targeting_during_quick_loot_cooldown(monkeypatch):
+def test_handle_gameplay_tasks_holds_position_during_quick_loot_confirmation_cooldown(monkeypatch):
     from time import time
     monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
     context = make_gameplay_context(
@@ -302,7 +303,8 @@ def test_handle_gameplay_tasks_prioritizes_targeting_during_quick_loot_cooldown(
         'enabled': True,
         'mode': 'quickLoot',
         'quickLootDetectionPending': True,
-        'quickLootReady': True,
+        'quickLootReady': False,
+        'quickLootAwaitingConfirmation': True,
         'quickLootCooldownUntil': time() + 10.0,
         'corpsesToLoot': [],
     }
@@ -324,9 +326,9 @@ def test_handle_gameplay_tasks_prioritizes_targeting_during_quick_loot_cooldown(
     result = PyTibiaThread(None).handleGameplayTasks(context)
 
     assert result is context
-    assert context['way'] == 'targeting'
+    assert context['way'] == 'lootPending'
     context['tasksOrchestrator'].setRootTask.assert_not_called()
-    resolveTargetingTasks.assert_called_once_with(context)
+    resolveTargetingTasks.assert_not_called()
 
 
 def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creatures_to_attack(monkeypatch):
