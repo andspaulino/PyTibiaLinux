@@ -325,6 +325,7 @@ def test_handle_gameplay_tasks_prioritizes_targeting_during_quick_loot_cooldown(
 
     assert result is context
     assert context['way'] == 'targeting'
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
     resolveTargetingTasks.assert_called_once_with(context)
 
 
@@ -335,6 +336,7 @@ def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creature
         'mode': 'quickLoot',
         'quickLootDetectionPending': True,
         'quickLootReady': False,
+        'highlightedSlots': [{'slot': (7, 4)}],
         'corpsesToLoot': [],
     }
     currentRootTask = MagicMock(name='rootTask')

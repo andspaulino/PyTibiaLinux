@@ -43,10 +43,14 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # lootState['quickLootDetectionPending'] = False
         # lootState['quickLootBlockingSlot'] = None
 
-        slots = [
-            item['slot']
+        # slots = [
+        #     item['slot']
+        #     for item in lootState.get('highlightedSlots', [])
+        # ]
+        slots = tuple(
+            tuple(item['slot'])
             for item in lootState.get('highlightedSlots', [])
-        ]
+        )
         utilsKeyboard.hotkey(*keys)
         now = time()
         lootState['quickLootReady'] = False
@@ -55,7 +59,7 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         lootState['quickLootRetryCount'] = (
             lootState.get('quickLootRetryCount', 0) + 1
         )
-        lootState['quickLootAttemptSlots'] = slots
+        lootState['quickLootAttemptSlots'] = list(slots)
         lootState['quickLootCooldownUntil'] = now + 0.7
         lootState['quickLootDetectionPending'] = False
         lootState['quickLootBlockingSlot'] = None

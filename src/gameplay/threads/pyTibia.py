@@ -264,10 +264,19 @@ class PyTibiaThread:
         now = time()
         isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
         isQuickLootReady = quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown
+        # Código Linux anterior (Marco 8.7):
+        # isQuickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('quickLootDetectionPending', False)
+        #     and not isQuickLootInCooldown
+        # )
+
+        hasHighlightedCandidates = len(lootState.get('highlightedSlots', [])) > 0
         isQuickLootPending = (
             quickLootEnabled
             and lootState.get('quickLootDetectionPending', False)
             and not isQuickLootInCooldown
+            and hasHighlightedCandidates
         )
         # Código Linux anterior (Marco 8.7):
         # hasCreaturesToAttackAfterCheck = (
