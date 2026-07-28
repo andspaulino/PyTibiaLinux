@@ -77,6 +77,7 @@ def classifyLootHighlightSlots(
     candidatePixelsMin=LOOT_HIGHLIGHT_CANDIDATE_PIXELS_MIN,
     ambientPixelsMin=LOOT_HIGHLIGHT_AMBIENT_PIXELS_MIN,
     maxGlobalMotionRatio=LOOT_HIGHLIGHT_MAX_GLOBAL_MOTION_RATIO,
+    eligibleSlots=None,
 ):
     motionMask, motionMagnitude = getLootHighlightMotionMask(
         frames,
@@ -99,8 +100,15 @@ def classifyLootHighlightSlots(
     height, width = motionMask.shape
     xEdges = np.rint(np.linspace(0, width, LOOT_GRID_COLUMNS + 1)).astype(int)
     yEdges = np.rint(np.linspace(0, height, LOOT_GRID_ROWS + 1)).astype(int)
+    eligibleSlotsSet = (
+        None
+        if eligibleSlots is None
+        else {tuple(slot) for slot in eligibleSlots}
+    )
     for row in range(LOOT_GRID_ROWS):
         for column in range(LOOT_GRID_COLUMNS):
+            if eligibleSlotsSet is not None and (column, row) not in eligibleSlotsSet:
+                continue
             x0, x1 = xEdges[column], xEdges[column + 1]
             y0, y1 = yEdges[row], yEdges[row + 1]
             motionPixels = int(np.count_nonzero(motionMask[y0:y1, x0:x1]))

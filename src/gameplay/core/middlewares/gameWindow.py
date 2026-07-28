@@ -52,8 +52,12 @@ def setDirectionMiddleware(context: Context) -> Context:
 def setHandleLootMiddleware(context: Context) -> Context:
     # Código original: o fluxo legado era executado sem uma flag própria de Looting.
     # currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
-    lootEnabled = context.get('loot', {}).get('enabled', False)
-    if lootEnabled:
+    lootState = context.get('loot', {})
+    legacyLootEnabled = (
+        lootState.get('enabled', False)
+        and lootState.get('mode', 'quickLoot') == 'legacy'
+    )
+    if legacyLootEnabled:
         currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
         if (currentTaskName not in ['depositGold', 'refill', 'selectChatTab']):
             lootTab = context['chat']['tabs'].get('loot')

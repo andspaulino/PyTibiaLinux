@@ -13,6 +13,7 @@ from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointI
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
 from src.gameplay.core.middlewares.tasks import setCleanUpTasksMiddleware
 from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
+from src.gameplay.core.tasks.quickLootNearbyCorpses import QuickLootNearbyCorpsesTask
 from src.gameplay.resolvers import resolveTasksByWaypoint
 from src.gameplay.healing.observers.eatFood import eatFood
 from src.gameplay.healing.observers.healingBySpells import healingBySpells
@@ -80,9 +81,9 @@ class PyTibiaThread:
         context = setChatTabsMiddleware(context)
         context = setBattleListMiddleware(context)
         context = setGameWindowMiddleware(context)
-        context = setLootHighlightingMiddleware(context)
         context = setDirectionMiddleware(context)
         context = setGameWindowCreaturesMiddleware(context)
+        context = setLootHighlightingMiddleware(context)
         context = setHandleLootMiddleware(context)
         context = setWaypointIndexMiddleware(context)
         context = setMapPlayerStatusMiddleware(context)
@@ -166,7 +167,35 @@ class PyTibiaThread:
         if currentTask is not None and currentTask.name == 'selectChatTab':
             return context
 
-        # Loot permanece associado ao Cavebot até o Marco 10.
+        lootState = context.get('loot', {})
+        quickLootEnabled = (
+            lootState.get('enabled', False)
+            and lootState.get('mode', 'quickLoot') == 'quickLoot'
+        )
+        if quickLootEnabled and lootState.get('quickLootReady', False):
+            context['way'] = 'lootCorpses'
+            currentRootTask = (
+                currentTask.rootTask
+                if currentTask is not None and currentTask.rootTask is not None
+                else currentTask
+            )
+            if (
+                currentRootTask is not None
+                and currentRootTask.name != 'quickLootNearbyCorpses'
+            ):
+                context['tasksOrchestrator'].setRootTask(context, None)
+            if context['tasksOrchestrator'].getCurrentTask(context) is None:
+                context['tasksOrchestrator'].setRootTask(
+                    context,
+                    QuickLootNearbyCorpsesTask(),
+                )
+            context['gameWindow']['previousMonsters'] = (
+                context['gameWindow']['monsters']
+            )
+            return context
+
+        # Código original: o Looting legado permanece disponível para o modo
+        # de abertura individual de corpses associado ao Cavebot.
         if cavebotEnabled and len(context['loot']['corpsesToLoot']) > 0:
             context['way'] = 'lootCorpses'
             if currentTask is not None and currentTask.rootTask is not None and currentTask.rootTask.name != 'lootCorpse':
