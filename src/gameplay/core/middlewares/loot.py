@@ -1,3 +1,4 @@
+from time import time
 from src.repositories.gameWindow.loot import classifyLootHighlightSlots
 from ...typings import Context
 
@@ -61,14 +62,19 @@ def _updatePendingSlots(context, lootState):
         for item in lootState['pendingHighlightSlots']
         if tuple(item['slot']) not in currentSlots
     }
+    now = time()
+    slotCooldowns = lootState.setdefault('slotCooldowns', {})
     # Código Linux anterior (Marco 8.7):
     # for slot in disappearedSlots:
-    #     pendingBySlot[slot] = {
-    #         'slot': slot,
-    #         'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
-    #     }
+    #     if slot in QUICK_LOOT_NEARBY_SLOTS:
+    #         pendingBySlot[slot] = {
+    #             'slot': slot,
+    #             'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
+    #         }
     for slot in disappearedSlots:
         if slot in QUICK_LOOT_NEARBY_SLOTS:
+            if slotCooldowns.get(slot, 0) > now:
+                continue
             pendingBySlot[slot] = {
                 'slot': slot,
                 'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
@@ -175,21 +181,76 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
         ambient = []
         failureReason = classification['failureReason']
 
+    now = time()
+    slotCooldowns = lootState.setdefault('slotCooldowns', {})
+    candidates = [
+        item for item in candidates
+        if slotCooldowns.get(tuple(item['slot']), 0) <= now
+    ]
     confirmedSlots = {item['slot'] for item in candidates}
     nearbyConfirmedSlots = confirmedSlots & QUICK_LOOT_NEARBY_SLOTS
+    # Código Linux anterior (Marco 8.7):
+    # if lootState.get('enabled', False):
+    #     if lootState['quickLootAwaitingConfirmation']:
+    #         if len(nearbyConfirmedSlots) == 0:
+    #             lootState['quickLootAwaitingConfirmation'] = False
+    #             lootState['quickLootConfirmationBatches'] = 0
+    #             lootState['quickLootRetryCount'] = 0
+    #             lootState['quickLootReady'] = False
+    #             lootState['quickLootDetectionPending'] = False
+    #             lootState['quickLootBlockingSlot'] = None
+    #             lootState['pendingHighlightSlots'] = [
+    #                 item
+    #                 for item in lootState['pendingHighlightSlots']
+    #                 if tuple(item['slot']) not in QUICK_LOOT_NEARBY_SLOTS
+    #             ]
+    #             print('[Loot] Quick Loot confirmado pelo desaparecimento do highlight')
+    #         else:
+    #             lootState['quickLootConfirmationBatches'] += 1
+    #             if (
+    #                 lootState['quickLootConfirmationBatches']
+    #                 >= QUICK_LOOT_CONFIRMATION_BATCHES
+    #             ):
+    #                 lootState['quickLootAwaitingConfirmation'] = False
+    #                 lootState['quickLootConfirmationBatches'] = 0
+    #                 if (
+    #                     lootState['quickLootRetryCount']
+    #                     < lootState['quickLootMaxRetries']
+    #                 ):
+    #                     lootState['quickLootReady'] = True
+    #                     lootState['quickLootDetectionPending'] = True
+    #                 else:
+    #                     lootState['quickLootReady'] = False
+    #                     lootState['quickLootDetectionPending'] = False
+    #                     lootState['quickLootBlockingSlot'] = None
+    #                     lootState['highlightFailureReason'] = (
+    #                         'quick-loot-not-confirmed'
+    #                     )
+    #                     print('[Loot] Quick Loot não confirmado; retries esgotados')
+    #     elif len(nearbyConfirmedSlots) > 0:
+    #         lootState['quickLootReady'] = True
+    #         lootState['quickLootDetectionPending'] = True
+
+    attemptSlots = set(tuple(s) for s in lootState.get('quickLootAttemptSlots', []))
+    nearbyAttemptSlots = attemptSlots & QUICK_LOOT_NEARBY_SLOTS
+
     if lootState.get('enabled', False):
         if lootState['quickLootAwaitingConfirmation']:
-            if len(nearbyConfirmedSlots) == 0:
+            targetSlotsToCheck = nearbyAttemptSlots if len(nearbyAttemptSlots) > 0 else nearbyConfirmedSlots
+            remainingAttemptSlots = targetSlotsToCheck & confirmedSlots
+            if len(remainingAttemptSlots) == 0:
                 lootState['quickLootAwaitingConfirmation'] = False
                 lootState['quickLootConfirmationBatches'] = 0
                 lootState['quickLootRetryCount'] = 0
                 lootState['quickLootReady'] = False
                 lootState['quickLootDetectionPending'] = False
                 lootState['quickLootBlockingSlot'] = None
+                lootState['quickLootAttemptSlots'] = []
+                slotsToRemove = targetSlotsToCheck if len(targetSlotsToCheck) > 0 else QUICK_LOOT_NEARBY_SLOTS
                 lootState['pendingHighlightSlots'] = [
                     item
                     for item in lootState['pendingHighlightSlots']
-                    if tuple(item['slot']) not in QUICK_LOOT_NEARBY_SLOTS
+                    if tuple(item['slot']) not in slotsToRemove
                 ]
                 print('[Loot] Quick Loot confirmado pelo desaparecimento do highlight')
             else:
@@ -198,21 +259,30 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
                     lootState['quickLootConfirmationBatches']
                     >= QUICK_LOOT_CONFIRMATION_BATCHES
                 ):
-                    lootState['quickLootAwaitingConfirmation'] = False
                     lootState['quickLootConfirmationBatches'] = 0
                     if (
                         lootState['quickLootRetryCount']
                         < lootState['quickLootMaxRetries']
                     ):
+                        lootState['quickLootAwaitingConfirmation'] = False
                         lootState['quickLootReady'] = True
                         lootState['quickLootDetectionPending'] = True
                     else:
+                        lootState['quickLootAwaitingConfirmation'] = False
+                        lootState['quickLootRetryCount'] = 0
                         lootState['quickLootReady'] = False
                         lootState['quickLootDetectionPending'] = False
                         lootState['quickLootBlockingSlot'] = None
+                        lootState['quickLootAttemptSlots'] = []
                         lootState['highlightFailureReason'] = (
                             'quick-loot-not-confirmed'
                         )
+                        slotsToRemove = targetSlotsToCheck if len(targetSlotsToCheck) > 0 else QUICK_LOOT_NEARBY_SLOTS
+                        lootState['pendingHighlightSlots'] = [
+                            item
+                            for item in lootState['pendingHighlightSlots']
+                            if tuple(item['slot']) not in slotsToRemove
+                        ]
                         print('[Loot] Quick Loot não confirmado; retries esgotados')
         elif len(nearbyConfirmedSlots) > 0:
             lootState['quickLootReady'] = True

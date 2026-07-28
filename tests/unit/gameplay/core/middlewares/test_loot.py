@@ -223,3 +223,98 @@ def test_quick_loot_pending_cleared_when_blocking_slot_is_none_and_not_ready(mon
     assert context["loot"]["quickLootDetectionPending"] is False
     assert context["loot"]["quickLootBlockingSlot"] is None
 
+
+def test_quick_loot_resets_retry_count_on_exhaustion(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootConfirmationBatches": 1,
+        "quickLootRetryCount": 2,
+        "quickLootMaxRetries": 2,
+        "quickLootAttemptSlots": [(8, 5)],
+        "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [{"slot": (8, 5), "motionPixels": 1000, "method": "geometry"}],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootAwaitingConfirmation"] is False
+    assert context["loot"]["quickLootRetryCount"] == 0
+    assert context["loot"]["quickLootReady"] is False
+    assert context["loot"]["quickLootDetectionPending"] is False
+    assert context["loot"]["quickLootAttemptSlots"] == []
+
+
+def test_quick_loot_confirmation_checks_attempt_slots(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootConfirmationBatches": 0,
+        "quickLootRetryCount": 1,
+        "quickLootMaxRetries": 2,
+        "quickLootAttemptSlots": [(8, 5)],
+        "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootAwaitingConfirmation"] is False
+    assert context["loot"]["quickLootRetryCount"] == 0
+    assert context["loot"]["quickLootDetectionPending"] is False
+    assert context["loot"]["pendingHighlightSlots"] == []
+
+
+def test_slot_cooldown_prevents_retrigger(monkeypatch):
+    import time
+    context = make_context()
+    now = time.time()
+    context["loot"].update({
+        "enabled": True,
+        "slotCooldowns": {(8, 5): now + 10.0},
+        "pendingHighlightSlots": [{"slot": (8, 5), "remainingBatches": 6}],
+    })
+
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [{"slot": (8, 5), "motionPixels": 1000, "method": "geometry"}],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootReady"] is False
+    assert context["loot"]["highlightedSlots"] == []
+
+
+

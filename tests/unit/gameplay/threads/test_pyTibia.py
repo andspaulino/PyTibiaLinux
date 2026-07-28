@@ -6,7 +6,7 @@ class DummyContext:
     def __init__(self, context_dict):
         self.context = context_dict
 
-class TestLoopStop(BaseException):
+class LoopStopException(BaseException):
     pass
 
 class CustomDict(dict):
@@ -18,7 +18,7 @@ class CustomDict(dict):
         if key == 'pause':
             self.call_count += 1
             if self.call_count > 2:
-                raise TestLoopStop()
+                raise LoopStopException()
         return super().__getitem__(key)
 
 def test_pytibia_thread_loop_respects_pause(monkeypatch):
@@ -31,7 +31,7 @@ def test_pytibia_thread_loop_respects_pause(monkeypatch):
 
     try:
         thread.mainloop()
-    except TestLoopStop:
+    except LoopStopException:
         pass
 
     assert len(sleep_calls) >= 1
@@ -52,6 +52,7 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
         'cavebot': {'enabled': False, 'closestCreature': None, 'waypoints': {'currentIndex': None, 'items': []}},
         'targeting': {'enabled': False},
         'loot': {'corpsesToLoot': [], 'enabled': False},
+        'gameWindow': {'monsters': [], 'previousMonsters': []},
     }
     ctx = DummyContext(context_dict)
     thread = PyTibiaThread(ctx)
@@ -91,7 +92,7 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
         spells_called += 1
         # Pause after first iteration to stop the loop
         c['pause'] = True
-        raise TestLoopStop() # Force exit
+        raise LoopStopException() # Force exit
 
     monkeypatch.setattr("src.gameplay.threads.pyTibia.healingByPotions", mock_potions)
     monkeypatch.setattr("src.gameplay.threads.pyTibia.healingBySpells", mock_spells)
@@ -103,7 +104,7 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
 
     try:
         thread.mainloop()
-    except TestLoopStop:
+    except LoopStopException:
         pass
 
     assert mock_set_screenshot.call_count == 1

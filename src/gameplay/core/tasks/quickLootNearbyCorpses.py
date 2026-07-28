@@ -1,3 +1,4 @@
+from time import time
 import src.utils.keyboard as utilsKeyboard
 from ...typings import Context
 from .common.base import BaseTask
@@ -31,10 +32,20 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         lootState['quickLootRetryCount'] = (
             lootState.get('quickLootRetryCount', 0) + 1
         )
+        # Código Linux anterior (Marco 8.7):
+        # slots = [
+        #     item['slot']
+        #     for item in lootState.get('highlightedSlots', [])
+        # ]
         slots = [
             item['slot']
             for item in lootState.get('highlightedSlots', [])
         ]
+        lootState['quickLootAttemptSlots'] = slots
+        now = time()
+        slotCooldowns = lootState.setdefault('slotCooldowns', {})
+        for slot in slots:
+            slotCooldowns[tuple(slot)] = now + 3.0
         print(
             f"[Loot] Quick Loot enviado por {hotkey} "
             f"slots={slots} retry={lootState['quickLootRetryCount']}"
