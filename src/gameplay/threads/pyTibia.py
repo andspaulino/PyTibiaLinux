@@ -7,6 +7,7 @@ from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
 from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setHandleLootMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
+from src.gameplay.core.middlewares.loot import setLootHighlightingMiddleware
 from src.gameplay.core.middlewares.playerStatus import setMapPlayerStatusMiddleware
 from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointIndexMiddleware
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
@@ -79,6 +80,7 @@ class PyTibiaThread:
         context = setChatTabsMiddleware(context)
         context = setBattleListMiddleware(context)
         context = setGameWindowMiddleware(context)
+        context = setLootHighlightingMiddleware(context)
         context = setDirectionMiddleware(context)
         context = setGameWindowCreaturesMiddleware(context)
         context = setHandleLootMiddleware(context)

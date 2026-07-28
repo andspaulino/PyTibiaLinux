@@ -128,6 +128,14 @@ context = {
         }
     },
     'loot': {
+        'enabled': False,
+        'monitorHighlighting': False,
+        'quickLootHotkey': 'alt+q',
+        'highlightFrames': [],
+        'highlightedSlots': [],
+        'ambientSlots': [],
+        'highlightFailureReason': None,
+        'lastHighlightSignature': None,
         'corpsesToLoot': [],
     },
     'lastPressedKey': None,
