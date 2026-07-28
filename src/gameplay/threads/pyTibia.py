@@ -175,7 +175,11 @@ class PyTibiaThread:
             lootState.get('enabled', False)
             and lootState.get('mode', 'quickLoot') == 'quickLoot'
         )
-        if quickLootEnabled and lootState.get('quickLootReady', False):
+        now = time()
+        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
+        # Código Linux anterior (Marco 8.7):
+        # if quickLootEnabled and lootState.get('quickLootReady', False):
+        if quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown:
             context['way'] = 'lootCorpses'
             currentRootTask = (
                 currentTask.rootTask
@@ -265,9 +269,15 @@ class PyTibiaThread:
             and lootState.get('quickLootDetectionPending', False)
             and not isQuickLootInCooldown
         )
+        # Código Linux anterior (Marco 8.7):
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
-            and context['cavebot']['closestCreature'] is not None
             and hasCreaturesToAttack(context)
         )
 

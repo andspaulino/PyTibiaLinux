@@ -25,24 +25,37 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         )
         if len(keys) == 0:
             raise ValueError('Hotkey de Quick Loot não configurada')
+        # Código Linux anterior (Marco 8.7):
+        # utilsKeyboard.hotkey(*keys)
+        # lootState['quickLootReady'] = False
+        # lootState['quickLootAwaitingConfirmation'] = True
+        # lootState['quickLootConfirmationBatches'] = 0
+        # lootState['quickLootRetryCount'] = (
+        #     lootState.get('quickLootRetryCount', 0) + 1
+        # )
+        # slots = [
+        #     item['slot']
+        #     for item in lootState.get('highlightedSlots', [])
+        # ]
+        # lootState['quickLootAttemptSlots'] = slots
+        # now = time()
+        # lootState['quickLootCooldownUntil'] = now + 0.7
+        # lootState['quickLootDetectionPending'] = False
+        # lootState['quickLootBlockingSlot'] = None
+
+        slots = [
+            item['slot']
+            for item in lootState.get('highlightedSlots', [])
+        ]
         utilsKeyboard.hotkey(*keys)
+        now = time()
         lootState['quickLootReady'] = False
         lootState['quickLootAwaitingConfirmation'] = True
         lootState['quickLootConfirmationBatches'] = 0
         lootState['quickLootRetryCount'] = (
             lootState.get('quickLootRetryCount', 0) + 1
         )
-        # Código Linux anterior (Marco 8.7):
-        # slots = [
-        #     item['slot']
-        #     for item in lootState.get('highlightedSlots', [])
-        # ]
-        slots = [
-            item['slot']
-            for item in lootState.get('highlightedSlots', [])
-        ]
         lootState['quickLootAttemptSlots'] = slots
-        now = time()
         lootState['quickLootCooldownUntil'] = now + 0.7
         lootState['quickLootDetectionPending'] = False
         lootState['quickLootBlockingSlot'] = None

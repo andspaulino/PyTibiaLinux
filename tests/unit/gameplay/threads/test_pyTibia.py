@@ -270,10 +270,7 @@ def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_crea
         'quickLootReady': False,
         'corpsesToLoot': [],
     }
-    currentRootTask = MagicMock(name='rootTask')
-    currentRootTask.name = 'attackClosestCreature'
-    currentTask = MagicMock(rootTask=currentRootTask)
-    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    context['tasksOrchestrator'].getCurrentTask.return_value = None
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
         'src.gameplay.threads.pyTibia.getClosestCreature',
@@ -292,6 +289,43 @@ def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_crea
 
     assert result is context
     assert context['way'] == 'targeting'
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
+    resolveTargetingTasks.assert_called_once_with(context)
+
+
+def test_handle_gameplay_tasks_prioritizes_targeting_during_quick_loot_cooldown(monkeypatch):
+    from time import time
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        targeting_enabled=True, monsters=[monster])
+    context['loot'] = {
+        'enabled': True,
+        'mode': 'quickLoot',
+        'quickLootDetectionPending': True,
+        'quickLootReady': True,
+        'quickLootCooldownUntil': time() + 10.0,
+        'corpsesToLoot': [],
+    }
+    context['tasksOrchestrator'].getCurrentTask.return_value = None
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks)
+
+    result = PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert result is context
+    assert context['way'] == 'targeting'
+    resolveTargetingTasks.assert_called_once_with(context)
 
 
 def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creatures_to_attack(monkeypatch):
@@ -307,6 +341,10 @@ def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creature
     currentRootTask.name = 'attackClosestCreature'
     currentTask = MagicMock(rootTask=currentRootTask)
     context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    resolveTargetingTasks = MagicMock()
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks)
 
     result = PyTibiaThread(None).handleGameplayTasks(context)
 
@@ -314,4 +352,5 @@ def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creature
     assert context['way'] == 'lootPending'
     context['tasksOrchestrator'].setRootTask.assert_called_once_with(
         context, None)
+    resolveTargetingTasks.assert_not_called()
 
