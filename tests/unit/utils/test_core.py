@@ -68,7 +68,10 @@ def test_getCamera_reuses_the_same_capture_instance(monkeypatch):
         createdCameras.append(fakeCamera)
         return fakeCamera
 
-    monkeypatch.setattr(core, "MSS", createCamera)
+    # Teste anterior esperava a classe pública MSS, mas a implementação atual
+    # preservada no projeto instancia o factory importado como `mss`.
+    # monkeypatch.setattr(core, "MSS", createCamera)
+    monkeypatch.setattr(core, "mss", createCamera)
 
     assert core.getCamera() is fakeCamera
     assert core.getCamera() is fakeCamera
