@@ -259,7 +259,7 @@ def test_handle_gameplay_tasks_does_not_loot_when_cavebot_is_disabled(monkeypatc
     context['tasksOrchestrator'].setRootTask.assert_not_called()
 
 
-def test_handle_gameplay_tasks_pauses_targeting_when_quick_loot_is_pending(monkeypatch):
+def test_handle_gameplay_tasks_prioritizes_targeting_over_pending_loot_when_creatures_exist(monkeypatch):
     monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
     context = make_gameplay_context(
         targeting_enabled=True, monsters=[monster])
@@ -282,8 +282,31 @@ def test_handle_gameplay_tasks_pauses_targeting_when_quick_loot_is_pending(monke
         'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
         MagicMock(return_value=True))
     monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True))
+    monkeypatch.setattr(
         'src.gameplay.threads.pyTibia.resolveTargetingTasks',
         resolveTargetingTasks)
+
+    result = PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert result is context
+    assert context['way'] == 'targeting'
+
+
+def test_handle_gameplay_tasks_pauses_when_quick_loot_is_pending_and_no_creatures_to_attack(monkeypatch):
+    context = make_gameplay_context()
+    context['loot'] = {
+        'enabled': True,
+        'mode': 'quickLoot',
+        'quickLootDetectionPending': True,
+        'quickLootReady': False,
+        'corpsesToLoot': [],
+    }
+    currentRootTask = MagicMock(name='rootTask')
+    currentRootTask.name = 'attackClosestCreature'
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
 
     result = PyTibiaThread(None).handleGameplayTasks(context)
 
@@ -291,5 +314,4 @@ def test_handle_gameplay_tasks_pauses_targeting_when_quick_loot_is_pending(monke
     assert context['way'] == 'lootPending'
     context['tasksOrchestrator'].setRootTask.assert_called_once_with(
         context, None)
-    resolveTargetingTasks.assert_not_called()
 

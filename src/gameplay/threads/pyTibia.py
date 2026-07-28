@@ -226,9 +226,44 @@ class PyTibiaThread:
         #         if not isTryingToAttackClosestCreature:
         #             context = resolveTargetingTasks(context)
 
+        # Código Linux anterior (Marco 8.7):
+        # isQuickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('quickLootDetectionPending', False)
+        # )
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+        # if isQuickLootPending and not lootState.get('quickLootReady', False):
+        #     context['way'] = 'lootPending'
+        #     currentRootTask = (
+        #         currentTask.rootTask
+        #         if currentTask is not None and currentTask.rootTask is not None
+        #         else currentTask
+        #     )
+        #     if (
+        #         currentRootTask is not None
+        #         and currentRootTask.name == 'attackClosestCreature'
+        #     ):
+        #         context['tasksOrchestrator'].setRootTask(context, None)
+        # elif hasCreaturesToAttackAfterCheck:
+        #     context['way'] = 'targeting'
+        #     if shouldAskForTargetingTasks(context):
+        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
+        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
+        #             currentRootTask.name == 'attackClosestCreature')
+        #         if not isTryingToAttackClosestCreature:
+        #             context = resolveTargetingTasks(context)
+
+        now = time()
+        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
+        isQuickLootReady = quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown
         isQuickLootPending = (
             quickLootEnabled
             and lootState.get('quickLootDetectionPending', False)
+            and not isQuickLootInCooldown
         )
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
@@ -236,9 +271,15 @@ class PyTibiaThread:
             and hasCreaturesToAttack(context)
         )
 
-        if isQuickLootPending and not lootState.get('quickLootReady', False):
-            # Durante a classificação, interrompe somente a árvore de Targeting
-            # ativa. Healing e observers continuam no loop principal.
+        if hasCreaturesToAttackAfterCheck and not isQuickLootReady:
+            context['way'] = 'targeting'
+            if shouldAskForTargetingTasks(context):
+                currentRootTask = currentTask.rootTask if currentTask is not None else None
+                isTryingToAttackClosestCreature = currentRootTask is not None and (
+                    currentRootTask.name == 'attackClosestCreature')
+                if not isTryingToAttackClosestCreature:
+                    context = resolveTargetingTasks(context)
+        elif isQuickLootPending and not isQuickLootReady:
             context['way'] = 'lootPending'
             currentRootTask = (
                 currentTask.rootTask

@@ -43,6 +43,9 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         ]
         lootState['quickLootAttemptSlots'] = slots
         now = time()
+        lootState['quickLootCooldownUntil'] = now + 0.7
+        lootState['quickLootDetectionPending'] = False
+        lootState['quickLootBlockingSlot'] = None
         slotCooldowns = lootState.setdefault('slotCooldowns', {})
         for slot in slots:
             slotCooldowns[tuple(slot)] = now + 3.0
