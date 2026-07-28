@@ -7,11 +7,13 @@ from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
 from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setHandleLootMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
+from src.gameplay.core.middlewares.loot import setLootHighlightingMiddleware
 from src.gameplay.core.middlewares.playerStatus import setMapPlayerStatusMiddleware
 from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointIndexMiddleware
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
 from src.gameplay.core.middlewares.tasks import setCleanUpTasksMiddleware
 from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
+from src.gameplay.core.tasks.quickLootNearbyCorpses import QuickLootNearbyCorpsesTask
 from src.gameplay.resolvers import resolveTasksByWaypoint
 from src.gameplay.healing.observers.eatFood import eatFood
 from src.gameplay.healing.observers.healingBySpells import healingBySpells
@@ -68,7 +70,10 @@ class PyTibiaThread:
                 endTime = time()
                 diff = endTime - startTime
                 sleep(max(0.045 - diff, 0))
-            except:
+            # Código Linux anterior (Marco 2.6):
+            # except:
+            #     print('An exception occurred:', traceback.format_exc())
+            except Exception:
                 print('An exception occurred:', traceback.format_exc())
 
     def handleGameData(self, context):
@@ -81,6 +86,7 @@ class PyTibiaThread:
         context = setGameWindowMiddleware(context)
         context = setDirectionMiddleware(context)
         context = setGameWindowCreaturesMiddleware(context)
+        context = setLootHighlightingMiddleware(context)
         context = setHandleLootMiddleware(context)
         context = setWaypointIndexMiddleware(context)
         context = setMapPlayerStatusMiddleware(context)
@@ -164,7 +170,39 @@ class PyTibiaThread:
         if currentTask is not None and currentTask.name == 'selectChatTab':
             return context
 
-        # Loot permanece associado ao Cavebot até o Marco 10.
+        lootState = context.get('loot', {})
+        quickLootEnabled = (
+            lootState.get('enabled', False)
+            and lootState.get('mode', 'quickLoot') == 'quickLoot'
+        )
+        now = time()
+        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
+        # Código Linux anterior (Marco 8.7):
+        # if quickLootEnabled and lootState.get('quickLootReady', False):
+        if quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown:
+            context['way'] = 'lootCorpses'
+            currentRootTask = (
+                currentTask.rootTask
+                if currentTask is not None and currentTask.rootTask is not None
+                else currentTask
+            )
+            if (
+                currentRootTask is not None
+                and currentRootTask.name != 'quickLootNearbyCorpses'
+            ):
+                context['tasksOrchestrator'].setRootTask(context, None)
+            if context['tasksOrchestrator'].getCurrentTask(context) is None:
+                context['tasksOrchestrator'].setRootTask(
+                    context,
+                    QuickLootNearbyCorpsesTask(),
+                )
+            context['gameWindow']['previousMonsters'] = (
+                context['gameWindow']['monsters']
+            )
+            return context
+
+        # Código original: o Looting legado permanece disponível para o modo
+        # de abertura individual de corpses associado ao Cavebot.
         if cavebotEnabled and len(context['loot']['corpsesToLoot']) > 0:
             context['way'] = 'lootCorpses'
             if currentTask is not None and currentTask.rootTask is not None and currentTask.rootTask.name != 'lootCorpse':
@@ -177,13 +215,102 @@ class PyTibiaThread:
             context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
             return context
 
+        # Código Linux anterior (Marco 8.5):
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+        # if hasCreaturesToAttackAfterCheck:
+        #     context['way'] = 'targeting'
+        #     if shouldAskForTargetingTasks(context):
+        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
+        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
+        #             currentRootTask.name == 'attackClosestCreature')
+        #         if not isTryingToAttackClosestCreature:
+        #             context = resolveTargetingTasks(context)
+
+        # Código Linux anterior (Marco 8.7):
+        # isQuickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('quickLootDetectionPending', False)
+        # )
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+        # if isQuickLootPending and not lootState.get('quickLootReady', False):
+        #     context['way'] = 'lootPending'
+        #     currentRootTask = (
+        #         currentTask.rootTask
+        #         if currentTask is not None and currentTask.rootTask is not None
+        #         else currentTask
+        #     )
+        #     if (
+        #         currentRootTask is not None
+        #         and currentRootTask.name == 'attackClosestCreature'
+        #     ):
+        #         context['tasksOrchestrator'].setRootTask(context, None)
+        # elif hasCreaturesToAttackAfterCheck:
+        #     context['way'] = 'targeting'
+        #     if shouldAskForTargetingTasks(context):
+        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
+        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
+        #             currentRootTask.name == 'attackClosestCreature')
+        #         if not isTryingToAttackClosestCreature:
+        #             context = resolveTargetingTasks(context)
+
+        now = time()
+        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
+        isQuickLootReady = quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown
+        # Código Linux anterior (Marco 8.7):
+        # isQuickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('quickLootDetectionPending', False)
+        #     and not isQuickLootInCooldown
+        # )
+
+        hasHighlightedCandidates = len(lootState.get('highlightedSlots', [])) > 0
+        isQuickLootPending = (
+            quickLootEnabled
+            and lootState.get('quickLootDetectionPending', False)
+            and not isQuickLootInCooldown
+            and hasHighlightedCandidates
+        )
+        # Código Linux anterior (Marco 8.7):
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and context['cavebot']['closestCreature'] is not None
+        #     and hasCreaturesToAttack(context)
+        # )
+
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
-            and context['cavebot']['closestCreature'] is not None
             and hasCreaturesToAttack(context)
         )
 
-        if hasCreaturesToAttackAfterCheck:
+        if hasCreaturesToAttackAfterCheck and not isQuickLootReady:
+            context['way'] = 'targeting'
+            if shouldAskForTargetingTasks(context):
+                currentRootTask = currentTask.rootTask if currentTask is not None else None
+                isTryingToAttackClosestCreature = currentRootTask is not None and (
+                    currentRootTask.name == 'attackClosestCreature')
+                if not isTryingToAttackClosestCreature:
+                    context = resolveTargetingTasks(context)
+        elif isQuickLootPending and not isQuickLootReady:
+            context['way'] = 'lootPending'
+            currentRootTask = (
+                currentTask.rootTask
+                if currentTask is not None and currentTask.rootTask is not None
+                else currentTask
+            )
+            if (
+                currentRootTask is not None
+                and currentRootTask.name == 'attackClosestCreature'
+            ):
+                context['tasksOrchestrator'].setRootTask(context, None)
+        elif hasCreaturesToAttackAfterCheck:
             context['way'] = 'targeting'
             if shouldAskForTargetingTasks(context):
                 currentRootTask = currentTask.rootTask if currentTask is not None else None

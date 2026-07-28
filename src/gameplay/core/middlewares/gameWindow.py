@@ -50,28 +50,36 @@ def setDirectionMiddleware(context: Context) -> Context:
 
 # TODO: add unit tests
 def setHandleLootMiddleware(context: Context) -> Context:
-    currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
-    if (currentTaskName not in ['depositGold', 'refill', 'selectChatTab']):
-        lootTab = context['chat']['tabs'].get('loot')
-        if lootTab is not None and not lootTab['isSelected']:
-            context['tasksOrchestrator'].setRootTask(
-                context, SelectChatTabTask('loot'))
-    if hasNewLoot(context['screenshot']):
-        if context['cavebot']['previousTargetCreature'] is not None:
-            context['loot']['corpsesToLoot'].append(
-                context['cavebot']['previousTargetCreature'])
-            context['cavebot']['previousTargetCreature'] = None
-        # has spelled exori category
-        if context['comboSpells']['lastUsedSpell'] is not None and context['comboSpells']['lastUsedSpell'] in ['exori', 'exori gran', 'exori mas']:
-            spellPath = spellsPath.get(
-                context['comboSpells']['lastUsedSpell'], [])
-            if len(spellPath) > 0:
-                differentCreatures = getDifferentCreaturesBySlots(
-                    context['gameWindow']['previousMonsters'], context['gameWindow']['monsters'], spellPath)
-                for creature in differentCreatures:
-                    context['loot']['corpsesToLoot'].append(creature)
-            context['comboSpells']['lastUsedSpell'] = None
-            context['comboSpells']['lastUsedSpellAt'] = None
+    # Código original: o fluxo legado era executado sem uma flag própria de Looting.
+    # currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
+    lootState = context.get('loot', {})
+    legacyLootEnabled = (
+        lootState.get('enabled', False)
+        and lootState.get('mode', 'quickLoot') == 'legacy'
+    )
+    if legacyLootEnabled:
+        currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
+        if (currentTaskName not in ['depositGold', 'refill', 'selectChatTab']):
+            lootTab = context['chat']['tabs'].get('loot')
+            if lootTab is not None and not lootTab['isSelected']:
+                context['tasksOrchestrator'].setRootTask(
+                    context, SelectChatTabTask('loot'))
+        if hasNewLoot(context['screenshot']):
+            if context['cavebot']['previousTargetCreature'] is not None:
+                context['loot']['corpsesToLoot'].append(
+                    context['cavebot']['previousTargetCreature'])
+                context['cavebot']['previousTargetCreature'] = None
+            # has spelled exori category
+            if context['comboSpells']['lastUsedSpell'] is not None and context['comboSpells']['lastUsedSpell'] in ['exori', 'exori gran', 'exori mas']:
+                spellPath = spellsPath.get(
+                    context['comboSpells']['lastUsedSpell'], [])
+                if len(spellPath) > 0:
+                    differentCreatures = getDifferentCreaturesBySlots(
+                        context['gameWindow']['previousMonsters'], context['gameWindow']['monsters'], spellPath)
+                    for creature in differentCreatures:
+                        context['loot']['corpsesToLoot'].append(creature)
+                context['comboSpells']['lastUsedSpell'] = None
+                context['comboSpells']['lastUsedSpellAt'] = None
     context['cavebot']['targetCreature'] = getTargetCreature(
         context['gameWindow']['monsters'])
     if context['cavebot']['targetCreature'] is not None:

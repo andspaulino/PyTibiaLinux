@@ -198,6 +198,13 @@
           "walkToTarget": true,
           "creatures": {}
         },
+        "loot": {
+          "enabled": true,
+          "mode": "quickLoot",
+          "monitorHighlighting": true,
+          "quickLootMethod": "hotkey",
+          "quickLootHotkey": "alt+q"
+        },
         "comboSpells": {
           "enabled": false,
           "items": [

@@ -1289,4 +1289,5 @@ creatures = {
     'Corrupted Ghost': {'exp': 29, 'hp': 30, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
     'Corrupted Skeleton': {'exp': 34, 'hp': 45, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
     'The Corruptor': {'exp': 170, 'hp': 100, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Muglex Clan Chief': {'exp': 175, 'hp': 100, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
 }
