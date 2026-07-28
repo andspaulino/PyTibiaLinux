@@ -58,6 +58,7 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         lootState['quickLootReady'] = False
         lootState['quickLootAwaitingConfirmation'] = True
         lootState['quickLootConfirmationBatches'] = 0
+        lootState['quickLootAbsenceBatches'] = 0
         lootState['quickLootRetryCount'] = (
             lootState.get('quickLootRetryCount', 0) + 1
         )

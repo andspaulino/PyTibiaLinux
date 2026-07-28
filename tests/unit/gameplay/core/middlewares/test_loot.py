@@ -283,10 +283,53 @@ def test_quick_loot_confirmation_checks_attempt_slots(monkeypatch):
     for _ in range(12):
         loot_middleware.setLootHighlightingMiddleware(context)
 
+    assert context["loot"]["quickLootAwaitingConfirmation"] is True
+    assert context["loot"]["quickLootAbsenceBatches"] == 1
+
+    for _ in range(12):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
     assert context["loot"]["quickLootAwaitingConfirmation"] is False
     assert context["loot"]["quickLootRetryCount"] == 0
     assert context["loot"]["quickLootDetectionPending"] is False
     assert context["loot"]["pendingHighlightSlots"] == []
+
+
+def test_new_candidate_is_preserved_when_previous_attempt_is_confirmed(monkeypatch):
+    context = make_context()
+    context["loot"].update({
+        "enabled": True,
+        "quickLootAwaitingConfirmation": True,
+        "quickLootAttemptSlots": [(8, 5)],
+        "quickLootRetryCount": 1,
+        "pendingHighlightSlots": [
+            {"slot": (8, 5), "remainingBatches": 6},
+            {"slot": (8, 4), "remainingBatches": 6},
+        ],
+    })
+    monkeypatch.setattr(
+        loot_middleware,
+        "classifyLootHighlightSlots",
+        lambda frames, *args, **kwargs: {
+            "accepted": True,
+            "failureReason": None,
+            "candidates": [
+                {"slot": (8, 4), "motionPixels": 1200, "method": "magnitude"},
+            ],
+            "ambient": [],
+        },
+    )
+
+    for _ in range(24):
+        loot_middleware.setLootHighlightingMiddleware(context)
+
+    assert context["loot"]["quickLootAwaitingConfirmation"] is False
+    assert context["loot"]["quickLootReady"] is True
+    assert context["loot"]["quickLootDetectionPending"] is True
+    assert [
+        item["slot"]
+        for item in context["loot"]["pendingHighlightSlots"]
+    ] == [(8, 4)]
 
 
 def test_slot_cooldown_does_not_hide_confirmation_candidate(monkeypatch):
