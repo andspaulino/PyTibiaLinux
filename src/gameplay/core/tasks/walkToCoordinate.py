@@ -22,6 +22,8 @@ class WalkToCoordinateTask(VectorTask):
         # return not gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], self.coordinate)
         if self.pathfindingFailureReason is not None:
             return False
+        if context['radar']['coordinate'] is None:
+            return False
         if len(self.tasks) == 0:
             return True
         return not gameplayUtils.coordinatesAreEqual(
@@ -34,6 +36,12 @@ class WalkToCoordinateTask(VectorTask):
 
     def onBeforeRestart(self, context: Context) -> Context:
         context = gameplayUtils.releaseKeys(context)
+        # Código anterior da adaptação Linux:
+        # return self.onBeforeStart(context)
+        # O loop atualiza lastCoordinateVisited somente depois do orquestrador.
+        # O recálculo começa na coordenada já observada neste ciclo para impedir
+        # que o primeiro passo da nova rota seja descartado como obsoleto.
+        context['radar']['lastCoordinateVisited'] = context['radar']['coordinate']
         return self.onBeforeStart(context)
 
     def shouldRestart(self, context: Context) -> bool:
@@ -63,7 +71,15 @@ class WalkToCoordinateTask(VectorTask):
         return gameplayUtils.releaseKeys(context)
 
     def did(self, context: Context) -> bool:
+        # Código anterior da adaptação Linux:
+        # if self.pathfindingFailureReason is not None:
+        #     return False
+        # return gameplayUtils.coordinatesAreEqual(
+        #     context['radar']['coordinate'], self.coordinate
+        # )
         if self.pathfindingFailureReason is not None:
+            return False
+        if context['radar']['coordinate'] is None:
             return False
         return gameplayUtils.coordinatesAreEqual(
             context['radar']['coordinate'], self.coordinate

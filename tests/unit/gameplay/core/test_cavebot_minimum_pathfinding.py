@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 
 from src.gameplay.core import waypoint
+from src.gameplay.core.tasks.orchestrator import TasksOrchestrator
 from src.gameplay.core.tasks.walk import WalkTask
 from src.gameplay.core.tasks.walkToCoordinate import WalkToCoordinateTask
+from src.gameplay.core.tasks.walkToWaypoint import WalkToWaypointTask
 
 
 def install_floor(monkeypatch, floor=None):
@@ -164,6 +166,60 @@ def test_calculate_floor_walkpoints_rejects_blocked_goal(monkeypatch):
     assert failure == "goal-not-walkable"
 
 
+@pytest.mark.parametrize(
+    ("observedCoordinate", "expected"),
+    [
+        (None, False),
+        ((54, 54, 0), False),
+        ((55, 54, 1), False),
+        ((55, 54, 0), True),
+    ],
+)
+def test_walk_to_coordinate_completes_only_at_expected_coordinate(
+    observedCoordinate, expected
+):
+    context = make_context(coordinate=observedCoordinate)
+    task = WalkToCoordinateTask((55, 54, 0))
+
+    assert task.did(context) is expected
+
+
+def test_walk_to_coordinate_does_not_restart_without_radar_coordinate():
+    context = make_context(coordinate=None)
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.tasks = [SimpleNamespace(status="completed")]
+
+    assert task.did(context) is False
+    assert task.shouldRestartAfterAllChildrensComplete(context) is False
+
+
+def test_walk_to_coordinate_does_not_complete_when_pathfinding_is_blocked():
+    context = make_context(coordinate=(55, 54, 0))
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.pathfindingFailureReason = "path-not-found"
+
+    assert task.did(context) is False
+    assert task.shouldRestartAfterAllChildrensComplete(context) is False
+
+
+def test_walk_to_coordinate_restarts_when_children_end_away_from_destination():
+    context = make_context(coordinate=(54, 54, 0))
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.tasks = [SimpleNamespace(status="completed")]
+
+    assert task.did(context) is False
+    assert task.shouldRestartAfterAllChildrensComplete(context) is True
+
+
+def test_walk_to_coordinate_does_not_restart_after_reaching_destination():
+    context = make_context(coordinate=(55, 54, 0))
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.tasks = [SimpleNamespace(status="completed")]
+
+    assert task.did(context) is True
+    assert task.shouldRestartAfterAllChildrensComplete(context) is False
+
+
 def test_walk_to_coordinate_stays_blocked_without_advancing(monkeypatch):
     install_floor(monkeypatch)
     context = make_context()
@@ -255,6 +311,57 @@ def test_walk_to_coordinate_recalculates_without_advancing_goal(monkeypatch):
     assert task.pathfindingFailureReason is None
     assert originalWalkpoints != recalculatedWalkpoints
     assert (54, 54, 0) not in recalculatedWalkpoints
+
+
+def test_orchestrator_does_not_ignore_first_step_after_obstacle_recalculation(
+    monkeypatch,
+):
+    install_floor(monkeypatch, np.ones((218, 212), dtype=np.uint8))
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walkToCoordinate.WalkTask", WalkTask
+    )
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.getSpeed", lambda _: 100)
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.getTileFrictionByCoordinate", lambda _: 100
+    )
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.getBreakpointTileMovementSpeed",
+        lambda _speed, _friction: 100,
+    )
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.press", lambda _: None)
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.keyDown", lambda _: None)
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.releaseKeys",
+        lambda current_context: current_context,
+    )
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walkToCoordinate.gameplayUtils.releaseKeys",
+        lambda current_context: current_context,
+    )
+    context = make_context(coordinate=(106, 109, 0))
+    context["screenshot"] = None
+    context["cavebot"]["waypoints"] = {
+        "currentIndex": 0,
+        "items": [
+            {"type": "walk", "coordinate": [110, 109, 0], "options": {}}
+        ],
+    }
+    orchestrator = TasksOrchestrator()
+    rootTask = WalkToWaypointTask((110, 109, 0))
+    orchestrator.setRootTask(context, rootTask)
+    orchestrator.do(context)
+    context["radar"]["lastCoordinateVisited"] = (106, 109, 0)
+
+    context["radar"]["coordinate"] = (107, 109, 0)
+    context["cavebot"]["holesOrStairs"] = [(109, 109, 0)]
+    orchestrator.do(context)
+
+    walkToCoordinate = rootTask.tasks[0]
+    firstRecalculatedTask = walkToCoordinate.tasks[0]
+    assert context["radar"]["lastCoordinateVisited"] == (107, 109, 0)
+    assert tuple(firstRecalculatedTask.walkpoint) != (109, 109, 0)
+    assert firstRecalculatedTask.status == "running"
+    assert walkToCoordinate.currentTaskIndex == 0
 
 
 def test_walk_to_coordinate_recovers_when_blocking_obstacle_is_removed(monkeypatch):
