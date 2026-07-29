@@ -19,6 +19,18 @@
                             "type": "walk",
                             "coordinate": [32333, 31782, 7],
                             "options": {}
+                          },
+                          {
+                            "label": "cavebot-test-floor-8-start",
+                            "type": "walk",
+                            "coordinate": [32342, 31775, 8],
+                            "options": {}
+                          },
+                          {
+                            "label": "cavebot-test-floor-8-destination",
+                            "type": "walk",
+                            "coordinate": [32346, 31771, 8],
+                            "options": {}
                           }
                         ]
           }
