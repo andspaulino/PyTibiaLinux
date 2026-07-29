@@ -8,198 +8,28 @@
           "enabled": false,
           "waypoints": {
             "items": [
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33216, 32450, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33215, 32410, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33212, 32359, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "useShovel",
-                "coordinate": [33212, 32358, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33227, 32358, 8],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "moveDown",
-                "coordinate": [33228, 32358, 8],
-                "options": { "direction": "east" }
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33223, 32355, 9],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "moveDown",
-                "coordinate": [33223, 32354, 9],
-                "options": { "direction": "north" }
-              },
-              {
-                "label": "caveStart",
-                "type": "walk",
-                "coordinate": [33208, 32354, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33190, 32348, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33208, 32367, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33194, 32366, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33222, 32386, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33198, 32398, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33209, 32404, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33207, 32364, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33221, 32351, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "refillChecker",
-                "coordinate": [33220, 32355, 9],
-                "options": {
-                  "minimumAmountOfHealthPotions": 300,
-                  "minimumAmountOfManaPotions": 300,
-                  "minimumAmountOfCap": 1000,
-                  "waypointLabelToRedirect": "caveStart"
-                }
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33222, 32353, 10],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "moveUp",
-                "coordinate": [33222, 32354, 10],
-                "options": { "direction": "south" }
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33229, 32358, 9],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "moveUp",
-                "coordinate": [33228, 32358, 9],
-                "options": { "direction": "west" }
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33212, 32358, 8],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "useRope",
-                "coordinate": [33212, 32358, 8],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33222, 32387, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "depositGold",
-                "coordinate": [33222, 32387, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "walk",
-                "coordinate": [33217, 32403, 7],
-                "options": {}
-              },
-              {
-                "label": "",
-                "type": "refill",
-                "coordinate": [33217, 32402, 7],
-                "options": {
-                  "healthPotion": {
-                    "item": "Supreme Health Potion",
-                    "quantity": 402
-                  },
-                  "manaPotion": {
-                    "item": "Strong Mana Potion",
-                    "quantity": 402
-                  }
-                }
-              }
-            ]
+                          {
+                            "label": "cavebot-test-start",
+                            "type": "walk",
+                            "coordinate": [32340, 31783, 7],
+                            "options": {}
+                          },
+                          {
+                            "label": "cavebot-test-destination",
+                            "type": "walk",
+                            "coordinate": [32333, 31782, 7],
+                            "options": {}
+                          }
+                        ]
           }
         },
         "targeting": {
-          "enabled": true,
-          "walkToTarget": true,
+          "enabled": false,
+          "walkToTarget": false,
           "creatures": {}
         },
         "loot": {
-          "enabled": true,
+          "enabled": false,
           "mode": "quickLoot",
           "monitorHighlighting": true,
           "quickLootMethod": "hotkey",

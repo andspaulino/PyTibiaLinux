@@ -29,10 +29,26 @@ class WalkTask(BaseTask):
 
     # TODO: add unit tests
     def do(self, context: Context) -> bool:
+        # Código original:
+        # direction = getDirectionBetweenCoordinates(
+        #     context['radar']['coordinate'], self.walkpoint)
+        # if direction is None:
+        #     return context
+        if context['radar']['coordinate'] is None:
+            navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+            navigation['status'] = 'blocked'
+            navigation['failureReason'] = 'coordinate-unavailable'
+            navigation['plannedDirection'] = None
+            return releaseKeys(context)
         direction = getDirectionBetweenCoordinates(
             context['radar']['coordinate'], self.walkpoint)
         if direction is None:
+            navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+            navigation['plannedDirection'] = None
             return context
+        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+        navigation['plannedDirection'] = direction
+        navigation['nextWalkpoint'] = self.walkpoint
         futureDirection = None
         if self.parentTask and len(self.parentTask.tasks) > 1:
             if self.parentTask.currentTaskIndex + 1 < len(self.parentTask.tasks):
@@ -61,8 +77,14 @@ class WalkTask(BaseTask):
 
     # TODO: add unit tests
     def onInterrupt(self, context: Context) -> Context:
+        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+        navigation['plannedDirection'] = None
         return releaseKeys(context)
 
     # TODO: add unit tests
     def onTimeout(self, context: Context) -> Context:
+        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+        navigation['status'] = 'blocked'
+        navigation['failureReason'] = 'movement-timeout'
+        navigation['plannedDirection'] = None
         return releaseKeys(context)
