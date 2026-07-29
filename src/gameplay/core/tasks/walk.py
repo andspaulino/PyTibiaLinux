@@ -23,9 +23,18 @@ class WalkTask(BaseTask):
 
     # TODO: add unit tests
     def shouldIgnore(self, context: Context) -> bool:
+        # Código original:
+        # if context['radar']['lastCoordinateVisited'] is None:
+        #     return True
+        # return not gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], context['radar']['lastCoordinateVisited'])
+        if context['radar']['coordinate'] is None:
+            return False
         if context['radar']['lastCoordinateVisited'] is None:
             return True
-        return not gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], context['radar']['lastCoordinateVisited'])
+        return not gameplayUtils.coordinatesAreEqual(
+            context['radar']['coordinate'],
+            context['radar']['lastCoordinateVisited'],
+        )
 
     # TODO: add unit tests
     def do(self, context: Context) -> bool:
@@ -71,9 +80,28 @@ class WalkTask(BaseTask):
             context = releaseKeys(context)
         return context
 
+    def ping(self, context: Context) -> Context:
+        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+        if context['radar']['coordinate'] is None:
+            navigation['status'] = 'radar-unavailable'
+            navigation['failureReason'] = 'coordinate-unavailable'
+            navigation['plannedDirection'] = None
+            return releaseKeys(context)
+        if navigation.get('status') == 'radar-unavailable':
+            navigation['status'] = 'walking'
+            navigation['failureReason'] = None
+            return self.do(context)
+        return context
+
     # TODO: add unit tests
     def did(self, context: Context) -> bool:
-        return gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], self.walkpoint)
+        # Código original:
+        # return gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], self.walkpoint)
+        if context['radar']['coordinate'] is None:
+            return False
+        return gameplayUtils.coordinatesAreEqual(
+            context['radar']['coordinate'], self.walkpoint
+        )
 
     # TODO: add unit tests
     def onInterrupt(self, context: Context) -> Context:
