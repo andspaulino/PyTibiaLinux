@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.gameplay.core import waypoint
+from src.gameplay.core.middlewares.radar import setWaypointIndexMiddleware
 from src.gameplay.core.tasks.orchestrator import TasksOrchestrator
 from src.gameplay.core.tasks.walk import WalkTask
 from src.gameplay.core.tasks.walkToCoordinate import WalkToCoordinateTask
@@ -518,6 +519,114 @@ def test_walk_task_releases_keys_on_interrupt_and_timeout(monkeypatch, hook):
     if hook == "onTimeout":
         assert context["cavebot"]["navigation"]["status"] == "blocked"
         assert context["cavebot"]["navigation"]["failureReason"] == "movement-timeout"
+
+
+def test_waypoint_on_another_floor_stays_blocked_without_advancing(monkeypatch):
+    install_floor(monkeypatch)
+    context = make_context()
+    context["cavebot"]["waypoints"] = {
+        "currentIndex": 0,
+        "items": [
+            {"type": "walk", "coordinate": [55, 54, 1], "options": {}}
+        ],
+    }
+    orchestrator = TasksOrchestrator()
+    rootTask = WalkToWaypointTask((55, 54, 1))
+    orchestrator.setRootTask(context, rootTask)
+
+    orchestrator.do(context)
+
+    walkToCoordinate = rootTask.tasks[0]
+    assert orchestrator.rootTask is rootTask
+    assert rootTask.currentTaskIndex == 0
+    assert context["cavebot"]["waypoints"]["currentIndex"] == 0
+    assert walkToCoordinate.pathfindingFailureReason == "different-floor"
+    assert walkToCoordinate.tasks == []
+    assert context["cavebot"]["navigation"]["status"] == "blocked"
+    assert context["cavebot"]["navigation"]["failureReason"] == "different-floor"
+    assert context["lastPressedKey"] is None
+
+
+def test_pause_releases_keys_and_resume_creates_single_recalculated_root(monkeypatch):
+    install_floor(monkeypatch, np.ones((218, 212), dtype=np.uint8))
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walkToCoordinate.WalkTask", WalkTask
+    )
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.getSpeed", lambda _: 100)
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.getTileFrictionByCoordinate", lambda _: 100
+    )
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.getBreakpointTileMovementSpeed",
+        lambda _speed, _friction: 100,
+    )
+    pressed = []
+    held = []
+    released = []
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.press", pressed.append)
+    monkeypatch.setattr("src.gameplay.core.tasks.walk.keyDown", held.append)
+
+    def fakeReleaseKeys(currentContext):
+        released.append(currentContext["lastPressedKey"])
+        currentContext["lastPressedKey"] = None
+        return currentContext
+
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.releaseKeys", fakeReleaseKeys
+    )
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walkToCoordinate.gameplayUtils.releaseKeys",
+        fakeReleaseKeys,
+    )
+    context = make_context(coordinate=(106, 109, 0))
+    context["screenshot"] = None
+    context["pause"] = False
+    context["cavebot"]["waypoints"] = {
+        "currentIndex": 0,
+        "items": [
+            {"type": "walk", "coordinate": [110, 109, 0], "options": {}}
+        ],
+    }
+    orchestrator = TasksOrchestrator()
+    firstRoot = WalkToWaypointTask((110, 109, 0))
+    orchestrator.setRootTask(context, firstRoot)
+    orchestrator.do(context)
+    assert context["lastPressedKey"] == "right"
+    assert held == ["right"]
+
+    context["pause"] = True
+    orchestrator.setRootTask(context, None)
+    context["cavebot"]["waypoints"]["currentIndex"] = None
+
+    assert orchestrator.rootTask is None
+    assert context["lastPressedKey"] is None
+    assert "right" in released
+    inputCountWhilePaused = len(pressed) + len(held)
+    assert len(pressed) + len(held) == inputCountWhilePaused
+
+    context["radar"]["coordinate"] = (107, 109, 0)
+    context["radar"]["lastCoordinateVisited"] = (107, 109, 0)
+    context["pause"] = False
+    setWaypointIndexMiddleware(context)
+    resumedIndex = context["cavebot"]["waypoints"]["currentIndex"]
+    resumedWaypoint = context["cavebot"]["waypoints"]["items"][resumedIndex]
+    resumedRoot = WalkToWaypointTask(tuple(resumedWaypoint["coordinate"]))
+    orchestrator.setRootTask(context, resumedRoot)
+    orchestrator.do(context)
+
+    assert resumedIndex == 0
+    assert orchestrator.rootTask is resumedRoot
+    assert orchestrator.rootTask is not firstRoot
+    assert tuple(context["cavebot"]["navigation"]["goalCoordinate"]) == (
+        110,
+        109,
+        0,
+    )
+    assert tuple(context["cavebot"]["navigation"]["walkpoints"][0]) == (
+        108,
+        109,
+        0,
+    )
 
 
 def test_walk_task_does_not_send_input_without_coordinate(monkeypatch):
