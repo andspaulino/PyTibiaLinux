@@ -1,3 +1,12 @@
+from copy import deepcopy
+from pathlib import Path
+
+from src.routes.store import DEFAULT_ROUTES_DIRECTORY, RouteStore
+
+
+ROUTE_ID_MISSING = object()
+
+
 def merge_dict(target: dict, source: dict) -> dict:
     for key, value in source.items():
         if isinstance(value, dict) and key in target and isinstance(target[key], dict):
@@ -9,7 +18,46 @@ def merge_dict(target: dict, source: dict) -> dict:
 
 # TODO: add types
 # TODO: add unit tests
-def loadContextFromConfig(config, context):
+def loadContextFromConfig(
+    config,
+    context,
+    routesDirectory: Path | None = None,
+):
     if not config:
         return context
-    return merge_dict(context, config)
+
+    configToMerge = deepcopy(config)
+    cavebotConfig = configToMerge.get('cavebot', {})
+    routeId = (
+        cavebotConfig.pop('routeId', ROUTE_ID_MISSING)
+        if isinstance(cavebotConfig, dict)
+        else ROUTE_ID_MISSING
+    )
+
+    # Código Linux anterior:
+    # return merge_dict(context, config)
+    if routeId is ROUTE_ID_MISSING:
+        return merge_dict(context, configToMerge)
+    if not isinstance(routeId, str) or routeId == '':
+        raise ValueError('cavebot.routeId deve ser uma string não vazia')
+
+    if (
+        'waypoints' in cavebotConfig
+        and not isinstance(cavebotConfig['waypoints'], dict)
+    ):
+        raise ValueError('cavebot.waypoints deve ser um objeto')
+
+    routeStore = RouteStore(
+        routesDirectory
+        if routesDirectory is not None
+        else DEFAULT_ROUTES_DIRECTORY
+    )
+    route = routeStore.load(f'{routeId}.json')
+
+    loadedContext = merge_dict(context, configToMerge)
+    loadedContext['cavebot']['waypoints']['items'] = deepcopy(
+        route['waypoints']
+    )
+    loadedContext['cavebot']['waypoints']['currentIndex'] = None
+    loadedContext['cavebot']['waypoints']['state'] = None
+    return loadedContext

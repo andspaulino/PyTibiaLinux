@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "Muglex Newhaven",
+  "waypoints": [
+    {
+      "label": "route-1",
+      "type": "walk",
+      "coordinate": [32562, 32480, 7],
+      "options": {}
+    },
+    {
+      "label": "route-2",
+      "type": "walk",
+      "coordinate": [32557, 32473, 7],
+      "options": {}
+    },
+    {
+      "label": "route-3",
+      "type": "walk",
+      "coordinate": [32564, 32471, 7],
+      "options": {}
+    },
+    {
+      "label": "route-4",
+      "type": "walk",
+      "coordinate": [32568, 32476, 7],
+      "options": {}
+    }
+  ]
+}
