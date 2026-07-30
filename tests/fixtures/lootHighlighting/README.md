@@ -14,6 +14,7 @@ Casos:
 - `multiple_looted.npz`: três corpses de espécies/paletas distintas e uma animação ambiental;
 - `control_without_loot.npz`: quatro corpses mantidos sem executar Quick Loot e uma animação ambiental;
 - `control_without_corpses.npz`: duas tochas, sem corpse lootável;
-- `stacked_looted.npz`: Goblin isolado, Goblin + Ghost empilhados e uma animação ambiental.
+- `stacked_looted.npz`: Goblin isolado, Goblin + Ghost empilhados e uma animação ambiental;
+- `dp_carlin_ambient.npz`: oito slots de controle sem corpse derivados da captura temporal do BUG-001, incluindo tapetes, jogadores/outfits e objetos animados.
 
 As fixtures são dados de teste permanentes e independem de `temp_loot_samples/` e de `PyTibia/`.

@@ -89,7 +89,7 @@ def test_middleware_logs_only_when_candidate_slots_change(monkeypatch, capsys):
         loot_middleware.setLootHighlightingMiddleware(context)
     secondOutput = capsys.readouterr().out
 
-    assert "(8, 5), 736, 'geometry'" in firstOutput
+    assert "((8, 5), 736, 'geometry', 0.0, 0.0)" in firstOutput
     assert secondOutput == ""
 
 

@@ -40,7 +40,7 @@
           "creatures": {}
         },
         "loot": {
-          "enabled": false,
+          "enabled": true,
           "mode": "quickLoot",
           "monitorHighlighting": true,
           "quickLootMethod": "hotkey",

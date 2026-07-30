@@ -390,11 +390,19 @@ def setLootHighlightingMiddleware(context: Context) -> Context:
                     item['slot'],
                     item['motionPixels'],
                     item['method'],
+                    round(item.get('meanMotionRange', 0.0), 1),
+                    round(item.get('adjacentMotionMedian', 0.0), 1),
                 )
                 for item in candidates
             ]
             ambientSummary = [
-                (item['slot'], item['motionPixels'])
+                (
+                    item['slot'],
+                    item['motionPixels'],
+                    round(item.get('meanMotionRange', 0.0), 1),
+                    round(item.get('adjacentMotionMedian', 0.0), 1),
+                    item.get('rejectionReason'),
+                )
                 for item in ambient
             ]
             print(

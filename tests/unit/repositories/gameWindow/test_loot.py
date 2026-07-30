@@ -56,6 +56,13 @@ def test_multiple_species_are_detected_before_and_cleared_after_loot():
 
     assert before["accepted"] is True
     assert candidate_slots(before) == {(7, 4), (6, 5), (9, 6)}
+    assert all(
+        item["temporalSignatureAvailable"] is True
+        and item["temporalSignatureAccepted"] is True
+        and item["meanMotionRange"] >= 75
+        and item["adjacentMotionMedian"] <= 96
+        for item in before["candidates"]
+    )
     assert (14, 6) in ambient_slots(before)
     assert candidate_slots(after) == set()
 
@@ -74,6 +81,31 @@ def test_control_without_loot_keeps_all_four_corpse_slots_active():
     assert candidate_slots(after) == expected
     assert (0, 6) in ambient_slots(before)
     assert (0, 6) in ambient_slots(after)
+
+
+def test_dp_carlin_environmental_animations_do_not_become_loot_candidates():
+    fixture = load_fixture("dp_carlin_ambient")
+    expectedSlots = {tuple(slot) for slot in fixture["slots"]}
+
+    for phase in ("before", "after"):
+        result = classifyLootHighlightSlots(
+            compose_frames(fixture[phase], fixture["slots"])
+        )
+
+        assert candidate_slots(result) == set()
+        assert expectedSlots <= ambient_slots(result)
+        highMotionAmbient = [
+            item
+            for item in result["ambient"]
+            if item["slot"] in expectedSlots
+            and item["motionPixels"] >= 800
+        ]
+        assert len(highMotionAmbient) > 0
+        assert all(
+            item["temporalSignatureAccepted"] is False
+            and item["rejectionReason"] == "temporal-signature"
+            for item in highMotionAmbient
+        )
 
 
 def test_environmental_torches_do_not_become_loot_candidates():

@@ -19,6 +19,9 @@ LOOT_HIGHLIGHT_GEOMETRY_SIZE_MIN = 48
 LOOT_HIGHLIGHT_GEOMETRY_COMPONENT_MIN = 600
 LOOT_HIGHLIGHT_AMBIENT_PIXELS_MIN = 200
 LOOT_HIGHLIGHT_MAX_GLOBAL_MOTION_RATIO = 0.10
+LOOT_HIGHLIGHT_TEMPORAL_FRAMES_MIN = 6
+LOOT_HIGHLIGHT_MEAN_MOTION_RANGE_MIN = 75
+LOOT_HIGHLIGHT_ADJACENT_MOTION_MEDIAN_MAX = 96
 
 
 def getLootHighlightMotionMask(
@@ -83,6 +86,14 @@ def classifyLootHighlightSlots(
         frames,
         motionRangeMin,
     )
+    frameStack = np.asarray(frames)
+    signedFrames = frameStack.astype(np.int16, copy=False)
+    adjacentMotionMasks = (
+        np.abs(np.diff(signedFrames, axis=0)) >= motionRangeMin
+    )
+    hasEnoughTemporalFrames = (
+        frameStack.shape[0] >= LOOT_HIGHLIGHT_TEMPORAL_FRAMES_MIN
+    )
     globalMotionRatio = float(np.count_nonzero(motionMask)) / motionMask.size
     result = {
         "accepted": globalMotionRatio <= maxGlobalMotionRatio,
@@ -113,11 +124,39 @@ def classifyLootHighlightSlots(
             y0, y1 = yEdges[row], yEdges[row + 1]
             motionPixels = int(np.count_nonzero(motionMask[y0:y1, x0:x1]))
             slotMotionMask = motionMask[y0:y1, x0:x1]
+            slotMotionMagnitude = motionMagnitude[y0:y1, x0:x1]
+            meanMotionRange = (
+                float(np.mean(slotMotionMagnitude[slotMotionMask]))
+                if motionPixels > 0
+                else 0.0
+            )
+            adjacentMotionPixels = np.count_nonzero(
+                adjacentMotionMasks[:, y0:y1, x0:x1],
+                axis=(1, 2),
+            )
+            adjacentMotionMedian = (
+                float(np.median(adjacentMotionPixels))
+                if adjacentMotionPixels.size > 0
+                else 0.0
+            )
+            temporalSignatureAccepted = (
+                not hasEnoughTemporalFrames
+                or (
+                    meanMotionRange
+                    >= LOOT_HIGHLIGHT_MEAN_MOTION_RANGE_MIN
+                    and adjacentMotionMedian
+                    <= LOOT_HIGHLIGHT_ADJACENT_MOTION_MEDIAN_MAX
+                )
+            )
             geometry = getLootHighlightMotionGeometry(slotMotionMask)
             slotResult = {
                 "slot": (column, row),
                 "motionPixels": motionPixels,
                 "bounds": (int(x0), int(y0), int(x1), int(y1)),
+                "meanMotionRange": meanMotionRange,
+                "adjacentMotionMedian": adjacentMotionMedian,
+                "temporalSignatureAvailable": hasEnoughTemporalFrames,
+                "temporalSignatureAccepted": temporalSignatureAccepted,
                 **geometry,
             }
             isMagnitudeCandidate = motionPixels >= candidatePixelsMin
@@ -128,13 +167,30 @@ def classifyLootHighlightSlots(
                 and geometry["largestComponent"]
                 >= LOOT_HIGHLIGHT_GEOMETRY_COMPONENT_MIN
             )
-            if isMagnitudeCandidate or isGeometryCandidate:
+            # Código anterior da adaptação Linux:
+            # if isMagnitudeCandidate or isGeometryCandidate:
+            #     slotResult["method"] = (
+            #         "magnitude" if isMagnitudeCandidate else "geometry"
+            #     )
+            #     result["candidates"].append(slotResult)
+            # elif motionPixels >= ambientPixelsMin:
+            #     slotResult["method"] = "ambient"
+            #     result["ambient"].append(slotResult)
+            if (
+                temporalSignatureAccepted
+                and (isMagnitudeCandidate or isGeometryCandidate)
+            ):
                 slotResult["method"] = (
                     "magnitude" if isMagnitudeCandidate else "geometry"
                 )
                 result["candidates"].append(slotResult)
             elif motionPixels >= ambientPixelsMin:
                 slotResult["method"] = "ambient"
+                slotResult["rejectionReason"] = (
+                    "temporal-signature"
+                    if not temporalSignatureAccepted
+                    else None
+                )
                 result["ambient"].append(slotResult)
 
     result["candidates"].sort(
