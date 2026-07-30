@@ -14,6 +14,15 @@ context = {
         'enabled': True,
         'holesOrStairs': [],
         'isAttackingSomeCreature': False,
+        'navigation': {
+            'blockedCoordinates': [],
+            'failureReason': None,
+            'goalCoordinate': None,
+            'nextWalkpoint': None,
+            'plannedDirection': None,
+            'status': 'idle',
+            'walkpoints': [],
+        },
         'previousTargetCreature': None,
         'targetCreature': None,
         'waypoints': {
