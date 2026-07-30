@@ -1,11 +1,15 @@
 from src.repositories.battleList.core import getBeingAttackedCreatureCategory
-from src.repositories.chat.core import hasNewLoot
+# Código original:
+# from src.repositories.chat.core import hasNewLoot
 from src.repositories.gameWindow.config import gameWindowSizes
 from src.repositories.gameWindow.core import getCoordinate, getImageByCoordinate
-from src.repositories.gameWindow.creatures import getCreatures, getCreaturesByType, getDifferentCreaturesBySlots, getTargetCreature
-from ...comboSpells.core import spellsPath
+from src.repositories.gameWindow.creatures import getCreatures, getCreaturesByType, getTargetCreature
+# Código original:
+# from src.repositories.gameWindow.creatures import getDifferentCreaturesBySlots
+# from ...comboSpells.core import spellsPath
 from ...typings import Context
-from ..tasks.selectChatTab import SelectChatTabTask
+# Código original:
+# from ..tasks.selectChatTab import SelectChatTabTask
 
 
 # Coordenada interna sem significado mundial, usada somente para montar a grade
@@ -44,38 +48,14 @@ def setDirectionMiddleware(context: Context) -> Context:
     return context
 
 
-# TODO: add unit tests
-def setHandleLootMiddleware(context: Context) -> Context:
-    # Código original: o fluxo legado era executado sem uma flag própria de Looting.
-    # currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
-    lootState = context.get('loot', {})
-    legacyLootEnabled = (
-        lootState.get('enabled', False)
-        and lootState.get('mode', 'quickLoot') == 'legacy'
-    )
-    if legacyLootEnabled:
-        currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
-        if (currentTaskName not in ['depositGold', 'refill', 'selectChatTab']):
-            lootTab = context['chat']['tabs'].get('loot')
-            if lootTab is not None and not lootTab['isSelected']:
-                context['tasksOrchestrator'].setRootTask(
-                    context, SelectChatTabTask('loot'))
-        if hasNewLoot(context['screenshot']):
-            if context['cavebot']['previousTargetCreature'] is not None:
-                context['loot']['corpsesToLoot'].append(
-                    context['cavebot']['previousTargetCreature'])
-                context['cavebot']['previousTargetCreature'] = None
-            # has spelled exori category
-            if context['comboSpells']['lastUsedSpell'] is not None and context['comboSpells']['lastUsedSpell'] in ['exori', 'exori gran', 'exori mas']:
-                spellPath = spellsPath.get(
-                    context['comboSpells']['lastUsedSpell'], [])
-                if len(spellPath) > 0:
-                    differentCreatures = getDifferentCreaturesBySlots(
-                        context['gameWindow']['previousMonsters'], context['gameWindow']['monsters'], spellPath)
-                    for creature in differentCreatures:
-                        context['loot']['corpsesToLoot'].append(creature)
-                context['comboSpells']['lastUsedSpell'] = None
-                context['comboSpells']['lastUsedSpellAt'] = None
+# Código original:
+# `setHandleLootMiddleware` selecionava a aba Loot, chamava `hasNewLoot()` e
+# associava mensagens do chat ao último alvo ou a mortes inferidas por spells.
+# A cópia integral está preservada em
+# `docs/historico-looting/chat-loot-detector.py.txt` e no histórico Git.
+
+
+def setTargetCreatureHistoryMiddleware(context: Context) -> Context:
     context['cavebot']['targetCreature'] = getTargetCreature(
         context['gameWindow']['monsters'])
     if context['cavebot']['targetCreature'] is not None:

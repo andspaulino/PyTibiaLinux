@@ -1,15 +1,8 @@
 from time import time
 
-from src.repositories.chat.core import hasNewLoot
-from src.repositories.gameWindow.loot import classifyLootHighlightSlots
-
 from ...typings import Context
 
 
-LOOT_HIGHLIGHT_FRAME_COUNT = 12
-LOOT_HIGHLIGHT_PENDING_BATCHES = 6
-QUICK_LOOT_CONFIRMATION_BATCHES = 2
-QUICK_LOOT_ABSENCE_BATCHES = 2
 QUICK_LOOT_NEARBY_SLOTS = {
     (column, row)
     for row in range(4, 7)
@@ -17,397 +10,74 @@ QUICK_LOOT_NEARBY_SLOTS = {
 }
 
 
-def _resetFrameBuffer(lootState):
-    lootState['highlightFrames'] = []
-    lootState['highlightFrameCoordinate'] = None
+# Código Linux anterior:
+# - importava `hasNewLoot` da aba Loot;
+# - acumulava 12 frames da Game Window;
+# - classificava Loot Highlighting por magnitude, geometria e assinatura temporal;
+# - mantinha confirmação visual, retries e estados de ausência.
+# A implementação integral foi preservada para consulta em:
+# `docs/historico-looting/loot-highlighting-middleware.py.txt`.
 
 
-def _resetLootHighlightState(lootState):
-    _resetFrameBuffer(lootState)
-    lootState['pendingHighlightSlots'] = []
-    lootState['highlightedSlots'] = []
-    lootState['ambientSlots'] = []
-    lootState['highlightFailureReason'] = None
-    lootState['lastHighlightSignature'] = None
-    lootState['quickLootReady'] = False
-    lootState['quickLootDetectionPending'] = False
-    lootState['quickLootBlockingSlot'] = None
-    lootState['quickLootAwaitingConfirmation'] = False
-    lootState['quickLootConfirmationBatches'] = 0
-    lootState['quickLootAbsenceBatches'] = 0
-    lootState['quickLootRetryCount'] = 0
+def _getCreatureSlot(creature):
+    slot = creature.get('slot')
+    return tuple(slot) if slot is not None else None
 
 
-def _getHighlightSignature(candidates, failureReason):
-    if failureReason is not None:
-        return ('failure', failureReason)
-    return (
-        'candidates',
-        tuple(sorted(item['slot'] for item in candidates)),
+def hasAdjacentMonster(context: Context) -> bool:
+    return any(
+        _getCreatureSlot(monster) in QUICK_LOOT_NEARBY_SLOTS
+        for monster in context.get('gameWindow', {}).get('monsters', [])
     )
 
 
-def _getCreatureSlots(creatures):
-    return {
-        tuple(creature['slot'])
-        for creature in creatures
-        if creature.get('slot') is not None
-    }
-
-
-def _updatePendingSlots(context, lootState):
-    gameWindowState = context.get('gameWindow', {})
-    previousSlots = _getCreatureSlots(gameWindowState.get('previousMonsters', []))
-    currentMonsters = gameWindowState.get('monsters', [])
-    currentSlots = _getCreatureSlots(currentMonsters)
-    disappearedSlots = previousSlots - currentSlots
-
-    pendingBySlot = {
-        tuple(item['slot']): item
-        for item in lootState['pendingHighlightSlots']
-        if tuple(item['slot']) not in currentSlots
-    }
-    # Código Linux anterior (Marco 8.7): o cooldown de input também
-    # descartava mortes novas no mesmo slot durante três segundos.
-    # now = time()
-    # slotCooldowns = lootState.setdefault('slotCooldowns', {})
-    # if slotCooldowns.get(slot, 0) > now:
-    #     continue
-    for slot in disappearedSlots:
-        if slot in QUICK_LOOT_NEARBY_SLOTS:
-            pendingBySlot[slot] = {
-                'slot': slot,
-                'remainingBatches': LOOT_HIGHLIGHT_PENDING_BATCHES,
-            }
-    lootState['pendingHighlightSlots'] = list(pendingBySlot.values())
-
-    previousTarget = context.get('cavebot', {}).get('previousTargetCreature')
-    currentTargetExists = any(
-        creature.get('isBeingAttacked', False)
-        for creature in currentMonsters
-    )
-    if previousTarget is None or currentTargetExists:
-        return
-    previousTargetSlot = previousTarget.get('slot')
-    if previousTargetSlot is None:
-        return
-    previousTargetSlot = tuple(previousTargetSlot)
-    if (
-        previousTargetSlot in disappearedSlots
-        and previousTargetSlot in QUICK_LOOT_NEARBY_SLOTS
-    ):
-        lootState['quickLootDetectionPending'] = True
-        lootState['quickLootBlockingSlot'] = previousTargetSlot
-
-
-def setLootHighlightingMiddleware(context: Context) -> Context:
+def setLootDeathMiddleware(context: Context) -> Context:
     lootState = context.setdefault('loot', {})
-    lootState.setdefault('highlightFrames', [])
-    lootState.setdefault('highlightFrameCoordinate', None)
-    lootState.setdefault('pendingHighlightSlots', [])
-    lootState.setdefault('highlightedSlots', [])
-    lootState.setdefault('ambientSlots', [])
-    lootState.setdefault('highlightFailureReason', None)
-    lootState.setdefault('lastHighlightSignature', None)
-    lootState.setdefault('quickLootReady', False)
-    lootState.setdefault('quickLootDetectionPending', False)
-    lootState.setdefault('quickLootBlockingSlot', None)
-    lootState.setdefault('quickLootAwaitingConfirmation', False)
-    lootState.setdefault('quickLootConfirmationBatches', 0)
-    lootState.setdefault('quickLootAbsenceBatches', 0)
-    lootState.setdefault('quickLootRetryCount', 0)
-    lootState.setdefault('quickLootMaxRetries', 2)
+    lootState.setdefault('pending', False)
+    lootState.setdefault('pendingSlot', None)
+    lootState.setdefault('detectedAt', None)
+    lootState.setdefault('quickLootCooldownUntil', 0)
 
-    now = time()
-    screenshot = context.get('screenshot')
-    chatLootVisible = (
-        screenshot is not None
-        and hasNewLoot(screenshot)
-    )
-    previousChatLootVisible = lootState.get('chatLootVisible', False)
-    if chatLootVisible and not previousChatLootVisible:
-        lootState['lastChatLootTime'] = now
-    lootState['chatLootVisible'] = chatLootVisible
-    # Este sinal é apenas telemetria de borda visual. O template existente não
-    # distingue duas mensagens novas enquanto `Loot of` permanece visível.
-    lootState['hasRecentChatLoot'] = (
-        now - lootState.get('lastChatLootTime', 0)
-    ) < 1.5
-
-    if not lootState.get('monitorHighlighting', False):
-        _resetLootHighlightState(lootState)
+    if not lootState.get('enabled', False) or lootState['pending']:
         return context
 
-    _updatePendingSlots(context, lootState)
-    pendingSlots = [
-        tuple(item['slot'])
-        for item in lootState['pendingHighlightSlots']
-    ]
-    if len(pendingSlots) == 0:
-        _resetFrameBuffer(lootState)
-        if (
-            not lootState.get('quickLootAwaitingConfirmation', False)
-            and not lootState.get('quickLootReady', False)
-        ):
-            lootState['quickLootDetectionPending'] = False
-            lootState['quickLootBlockingSlot'] = None
-        if lootState['highlightedSlots']:
-            lootState['highlightedSlots'] = []
-            signature = _getHighlightSignature([], None)
-            if signature != lootState['lastHighlightSignature']:
-                print('[Loot Highlighting] candidates=[] ambient=[]')
-                lootState['lastHighlightSignature'] = signature
+    cavebotState = context.get('cavebot', {})
+    previousTarget = cavebotState.get('previousTargetCreature')
+    if previousTarget is None:
         return context
 
-    gameWindowImage = context.get('gameWindow', {}).get('image')
-    radarCoordinate = context.get('radar', {}).get('coordinate')
-    if gameWindowImage is None:
-        _resetFrameBuffer(lootState)
-        lootState['highlightFailureReason'] = 'game-window-unavailable'
-        lootState['quickLootDetectionPending'] = False
-        return context
-    if radarCoordinate is None:
-        _resetFrameBuffer(lootState)
-        lootState['highlightFailureReason'] = 'radar-unavailable'
-        lootState['quickLootDetectionPending'] = False
+    previousTargetSlot = _getCreatureSlot(previousTarget)
+    if previousTargetSlot not in QUICK_LOOT_NEARBY_SLOTS:
         return context
 
-    frameCoordinate = lootState['highlightFrameCoordinate']
-    if frameCoordinate is None:
-        lootState['highlightFrameCoordinate'] = radarCoordinate
-    elif tuple(frameCoordinate) != tuple(radarCoordinate):
-        _resetFrameBuffer(lootState)
-        lootState['highlightFrameCoordinate'] = radarCoordinate
-
-    lootState['highlightFrames'].append(gameWindowImage.copy())
-    if len(lootState['highlightFrames']) < LOOT_HIGHLIGHT_FRAME_COUNT:
-        return context
-
-    frames = lootState['highlightFrames'][:LOOT_HIGHLIGHT_FRAME_COUNT]
-    _resetFrameBuffer(lootState)
-    classification = classifyLootHighlightSlots(
-        frames,
-        eligibleSlots=pendingSlots,
-    )
-    if classification['accepted']:
-        candidates = classification['candidates']
-        ambient = classification['ambient']
-        failureReason = None
-    else:
-        candidates = []
-        ambient = []
-        failureReason = classification['failureReason']
-
-    rawCandidates = candidates
-    rawConfirmedSlots = {item['slot'] for item in rawCandidates}
-    # Código Linux anterior: um cooldown por slot removia candidatos também
-    # durante a confirmação e podia ocultar uma morte nova no mesmo `3×3`.
-    # O cooldown global de input em `quickLootCooldownUntil` é suficiente.
-    # triggerCandidates = [
-    #     item for item in rawCandidates
-    #     if slotCooldowns.get(tuple(item['slot']), 0) <= now
-    # ]
-    triggerCandidates = rawCandidates
-    confirmedSlots = rawConfirmedSlots
-    nearbyConfirmedSlots = confirmedSlots & QUICK_LOOT_NEARBY_SLOTS
-    # Código Linux anterior (Marco 8.7):
-    # if lootState.get('enabled', False):
-    #     if lootState['quickLootAwaitingConfirmation']:
-    #         if len(nearbyConfirmedSlots) == 0:
-    #             lootState['quickLootAwaitingConfirmation'] = False
-    #             lootState['quickLootConfirmationBatches'] = 0
-    #             lootState['quickLootRetryCount'] = 0
-    #             lootState['quickLootReady'] = False
-    #             lootState['quickLootDetectionPending'] = False
-    #             lootState['quickLootBlockingSlot'] = None
-    #             lootState['pendingHighlightSlots'] = [
-    #                 item
-    #                 for item in lootState['pendingHighlightSlots']
-    #                 if tuple(item['slot']) not in QUICK_LOOT_NEARBY_SLOTS
-    #             ]
-    #             print('[Loot] Quick Loot confirmado pelo desaparecimento do highlight')
-    #         else:
-    #             lootState['quickLootConfirmationBatches'] += 1
-    #             if (
-    #                 lootState['quickLootConfirmationBatches']
-    #                 >= QUICK_LOOT_CONFIRMATION_BATCHES
-    #             ):
-    #                 lootState['quickLootAwaitingConfirmation'] = False
-    #                 lootState['quickLootConfirmationBatches'] = 0
-    #                 if (
-    #                     lootState['quickLootRetryCount']
-    #                     < lootState['quickLootMaxRetries']
-    #                 ):
-    #                     lootState['quickLootReady'] = True
-    #                     lootState['quickLootDetectionPending'] = True
-    #                 else:
-    #                     lootState['quickLootReady'] = False
-    #                     lootState['quickLootDetectionPending'] = False
-    #                     lootState['quickLootBlockingSlot'] = None
-    #                     lootState['highlightFailureReason'] = (
-    #                         'quick-loot-not-confirmed'
-    #                     )
-    #                     print('[Loot] Quick Loot não confirmado; retries esgotados')
-    #     elif len(nearbyConfirmedSlots) > 0:
-    #         lootState['quickLootReady'] = True
-    #         lootState['quickLootDetectionPending'] = True
-
-    attemptSlots = {
-        tuple(slot)
-        for slot in lootState.get('quickLootAttemptSlots', [])
-    }
-    nearbyAttemptSlots = attemptSlots & QUICK_LOOT_NEARBY_SLOTS
-
-    if lootState.get('enabled', False):
-        if lootState['quickLootAwaitingConfirmation']:
-            targetSlotsToCheck = (
-                nearbyAttemptSlots
-                if len(nearbyAttemptSlots) > 0
-                else nearbyConfirmedSlots
-            )
-            remainingAttemptSlots = targetSlotsToCheck & rawConfirmedSlots
-            if failureReason is not None:
-                pass
-            elif len(remainingAttemptSlots) == 0:
-                lootState['quickLootAbsenceBatches'] += 1
-                if (
-                    lootState['quickLootAbsenceBatches']
-                    >= QUICK_LOOT_ABSENCE_BATCHES
-                ):
-                    newNearbySlots = nearbyConfirmedSlots - targetSlotsToCheck
-                    lootState['quickLootAwaitingConfirmation'] = False
-                    lootState['quickLootConfirmationBatches'] = 0
-                    lootState['quickLootAbsenceBatches'] = 0
-                    lootState['quickLootRetryCount'] = 0
-                    lootState['quickLootReady'] = len(newNearbySlots) > 0
-                    lootState['quickLootDetectionPending'] = (
-                        len(newNearbySlots) > 0
-                    )
-                    lootState['quickLootBlockingSlot'] = None
-                    lootState['quickLootAttemptSlots'] = []
-                    # Código Linux anterior: removia todo o `3×3`, inclusive
-                    # corpses novos detectados durante esta confirmação.
-                    # slotsToRemove = QUICK_LOOT_NEARBY_SLOTS
-                    slotsToRemove = targetSlotsToCheck
-                    lootState['pendingHighlightSlots'] = [
-                        item
-                        for item in lootState['pendingHighlightSlots']
-                        if tuple(item['slot']) not in slotsToRemove
-                    ]
-                    print('[Loot] Quick Loot confirmado pelo desaparecimento do highlight')
-            else:
-                lootState['quickLootAbsenceBatches'] = 0
-                lootState['quickLootConfirmationBatches'] += 1
-                if (
-                    lootState['quickLootConfirmationBatches']
-                    >= QUICK_LOOT_CONFIRMATION_BATCHES
-                ):
-                    lootState['quickLootConfirmationBatches'] = 0
-                    if (
-                        lootState['quickLootRetryCount']
-                        < lootState['quickLootMaxRetries']
-                    ):
-                        lootState['quickLootAwaitingConfirmation'] = False
-                        lootState['quickLootReady'] = True
-                        lootState['quickLootDetectionPending'] = True
-                    else:
-                        lootState['quickLootAwaitingConfirmation'] = False
-                        lootState['quickLootAbsenceBatches'] = 0
-                        lootState['quickLootRetryCount'] = 0
-                        lootState['quickLootReady'] = False
-                        lootState['quickLootDetectionPending'] = False
-                        lootState['quickLootBlockingSlot'] = None
-                        lootState['quickLootAttemptSlots'] = []
-                        lootState['highlightFailureReason'] = (
-                            'quick-loot-not-confirmed'
-                        )
-                        slotsToRemove = (
-                            targetSlotsToCheck
-                            if len(targetSlotsToCheck) > 0
-                            else QUICK_LOOT_NEARBY_SLOTS
-                        )
-                        lootState['pendingHighlightSlots'] = [
-                            item
-                            for item in lootState['pendingHighlightSlots']
-                            if tuple(item['slot']) not in slotsToRemove
-                        ]
-                        print('[Loot] Quick Loot não confirmado; retries esgotados')
-        elif len(nearbyConfirmedSlots) > 0:
-            lootState['quickLootReady'] = True
-            lootState['quickLootDetectionPending'] = True
-
-    remainingPending = []
-    for item in lootState['pendingHighlightSlots']:
-        slot = tuple(item['slot'])
-        if slot in confirmedSlots:
-            item['remainingBatches'] = LOOT_HIGHLIGHT_PENDING_BATCHES
-            remainingPending.append(item)
-            continue
-        item['remainingBatches'] -= 1
-        if item['remainingBatches'] > 0:
-            remainingPending.append(item)
-    lootState['pendingHighlightSlots'] = remainingPending
-    remainingPendingSlots = {
-        tuple(item['slot'])
-        for item in remainingPending
-    }
-    # Código Linux anterior (Marco 8.7):
-    # blockingSlot = lootState.get('quickLootBlockingSlot')
-    # if (
-    #     blockingSlot is not None
-    #     and tuple(blockingSlot) not in remainingPendingSlots
-    #     and not lootState['quickLootReady']
-    #     and not lootState['quickLootAwaitingConfirmation']
-    # ):
-    #     lootState['quickLootDetectionPending'] = False
-    #     lootState['quickLootBlockingSlot'] = None
-    blockingSlot = lootState.get('quickLootBlockingSlot')
-    if (
-        not lootState['quickLootReady']
-        and not lootState['quickLootAwaitingConfirmation']
-        and (
-            blockingSlot is None
-            or tuple(blockingSlot) not in remainingPendingSlots
+    gameWindowState = context.get('gameWindow', {})
+    previousSlots = {
+        slot
+        for slot in (
+            _getCreatureSlot(monster)
+            for monster in gameWindowState.get('previousMonsters', [])
         )
-    ):
-        lootState['quickLootDetectionPending'] = False
-        lootState['quickLootBlockingSlot'] = None
+        if slot is not None
+    }
+    if previousTargetSlot not in previousSlots:
+        return context
 
-    lootState['highlightedSlots'] = (
-        rawCandidates
-        if lootState['quickLootAwaitingConfirmation']
-        else triggerCandidates
+    currentMonsters = gameWindowState.get('monsters', [])
+    currentSlots = {
+        slot
+        for slot in (_getCreatureSlot(monster) for monster in currentMonsters)
+        if slot is not None
+    }
+    currentTargetExists = any(
+        monster.get('isBeingAttacked', False)
+        for monster in currentMonsters
     )
-    lootState['ambientSlots'] = ambient
-    lootState['highlightFailureReason'] = failureReason
-    signature = _getHighlightSignature(candidates, failureReason)
-    if signature != lootState['lastHighlightSignature']:
-        if failureReason is not None:
-            print(f"[Loot Highlighting] rejected={failureReason}")
-        else:
-            candidateSummary = [
-                (
-                    item['slot'],
-                    item['motionPixels'],
-                    item['method'],
-                    round(item.get('meanMotionRange', 0.0), 1),
-                    round(item.get('adjacentMotionMedian', 0.0), 1),
-                )
-                for item in candidates
-            ]
-            ambientSummary = [
-                (
-                    item['slot'],
-                    item['motionPixels'],
-                    round(item.get('meanMotionRange', 0.0), 1),
-                    round(item.get('adjacentMotionMedian', 0.0), 1),
-                    item.get('rejectionReason'),
-                )
-                for item in ambient
-            ]
-            print(
-                f"[Loot Highlighting] candidates={candidateSummary} "
-                f"ambient={ambientSummary} pending={pendingSlots}"
-            )
-        lootState['lastHighlightSignature'] = signature
+    if currentTargetExists or previousTargetSlot in currentSlots:
+        return context
+
+    lootState['pending'] = True
+    lootState['pendingSlot'] = previousTargetSlot
+    lootState['detectedAt'] = time()
+    cavebotState['previousTargetCreature'] = None
+    print(f'[Loot] Morte detectada no 3x3 slot={previousTargetSlot}')
     return context

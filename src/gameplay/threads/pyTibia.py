@@ -6,13 +6,14 @@ import traceback
 from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
-from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setHandleLootMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
-from src.gameplay.core.middlewares.loot import setLootHighlightingMiddleware
+from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setTargetCreatureHistoryMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
+from src.gameplay.core.middlewares.loot import hasAdjacentMonster, setLootDeathMiddleware
 from src.gameplay.core.middlewares.playerStatus import setMapPlayerStatusMiddleware
 from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointIndexMiddleware
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
 from src.gameplay.core.middlewares.tasks import setCleanUpTasksMiddleware
-from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
+# Código original:
+# from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
 from src.gameplay.core.tasks.quickLootNearbyCorpses import QuickLootNearbyCorpsesTask
 from src.gameplay.resolvers import resolveTasksByWaypoint
 from src.gameplay.healing.observers.eatFood import eatFood
@@ -86,8 +87,11 @@ class PyTibiaThread:
         context = setGameWindowMiddleware(context)
         context = setDirectionMiddleware(context)
         context = setGameWindowCreaturesMiddleware(context)
-        context = setLootHighlightingMiddleware(context)
-        context = setHandleLootMiddleware(context)
+        # Código Linux anterior:
+        # context = setLootHighlightingMiddleware(context)
+        # context = setHandleLootMiddleware(context)
+        context = setLootDeathMiddleware(context)
+        context = setTargetCreatureHistoryMiddleware(context)
         context = setWaypointIndexMiddleware(context)
         context = setMapPlayerStatusMiddleware(context)
         context = setCleanUpTasksMiddleware(context)
@@ -171,21 +175,34 @@ class PyTibiaThread:
             return context
 
         lootState = context.get('loot', {})
-        quickLootEnabled = (
-            lootState.get('enabled', False)
-            and lootState.get('mode', 'quickLoot') == 'quickLoot'
+        quickLootEnabled = lootState.get('enabled', False)
+        quickLootPending = (
+            quickLootEnabled
+            and lootState.get('pending', False)
         )
-        now = time()
-        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
-        # Código Linux anterior (Marco 8.7):
-        # if quickLootEnabled and lootState.get('quickLootReady', False):
-        if quickLootEnabled and lootState.get('quickLootReady', False) and not isQuickLootInCooldown:
-            context['way'] = 'lootCorpses'
+        adjacentMonsterExists = hasAdjacentMonster(context)
+        isQuickLootInCooldown = (
+            time() < lootState.get('quickLootCooldownUntil', 0)
+        )
+
+        # Código Linux anterior:
+        # `quickLootReady`, Highlighting, confirmação visual e retries decidiam
+        # quando criar esta root. O fluxo simples usa somente morte pendente e
+        # ausência de monstro adjacente.
+        if quickLootPending and not adjacentMonsterExists:
+            context['way'] = 'lootPending'
             currentRootTask = (
                 currentTask.rootTask
                 if currentTask is not None and currentTask.rootTask is not None
                 else currentTask
             )
+            if isQuickLootInCooldown:
+                if currentRootTask is not None:
+                    context['tasksOrchestrator'].setRootTask(context, None)
+                context['gameWindow']['previousMonsters'] = (
+                    context['gameWindow']['monsters']
+                )
+                return context
             if (
                 currentRootTask is not None
                 and currentRootTask.name != 'quickLootNearbyCorpses'
@@ -201,19 +218,9 @@ class PyTibiaThread:
             )
             return context
 
-        # Código original: o Looting legado permanece disponível para o modo
-        # de abertura individual de corpses associado ao Cavebot.
-        if cavebotEnabled and len(context['loot']['corpsesToLoot']) > 0:
-            context['way'] = 'lootCorpses'
-            if currentTask is not None and currentTask.rootTask is not None and currentTask.rootTask.name != 'lootCorpse':
-                context['tasksOrchestrator'].setRootTask(context, None)
-            if context['tasksOrchestrator'].getCurrentTask(context) is None:
-                # TODO: get closest dead corpse
-                firstDeadCorpse = context['loot']['corpsesToLoot'][0]
-                context['tasksOrchestrator'].setRootTask(
-                    context, LootCorpseTask(firstDeadCorpse))
-            context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
-            return context
+        # Código original:
+        # a fila `corpsesToLoot` criava `LootCorpseTask`, que executava nove
+        # Shift+RightClick. O cliente atual usa uma única operação de área.
 
         # Código Linux anterior (Marco 8.5):
         # hasCreaturesToAttackAfterCheck = (
@@ -261,36 +268,7 @@ class PyTibiaThread:
         #         if not isTryingToAttackClosestCreature:
         #             context = resolveTargetingTasks(context)
 
-        now = time()
-        isQuickLootInCooldown = now < lootState.get('quickLootCooldownUntil', 0)
-        isQuickLootReady = (
-            quickLootEnabled
-            and lootState.get('quickLootReady', False)
-            and not isQuickLootInCooldown
-        )
-        hasHighlightedCandidates = (
-            len(lootState.get('highlightedSlots', [])) > 0
-        )
-        # Código Linux anterior: só bloqueava depois dos 12 frames, quando já
-        # havia highlight, e liberava durante o cooldown/confirmação. Com
-        # `walkToTarget`, o corpse podia sair do `3×3` antes do Quick Loot.
-        # isQuickLootPending = (
-        #     quickLootEnabled
-        #     and lootState.get('quickLootDetectionPending', False)
-        #     and not isQuickLootInCooldown
-        #     and hasHighlightedCandidates
-        # )
-        isQuickLootPending = (
-            quickLootEnabled
-            and lootState.get('quickLootDetectionPending', False)
-            and (
-                lootState.get('quickLootBlockingSlot') is not None
-                or lootState.get('quickLootAwaitingConfirmation', False)
-                or hasHighlightedCandidates
-            )
-        )
-
-        lootBlocksMovement = isQuickLootPending or isQuickLootReady
+        lootBlocksMovement = quickLootPending
         allowChase = (
             targetingEnabled
             and cavebotEnabled
@@ -303,26 +281,22 @@ class PyTibiaThread:
             and hasCreaturesToAttack(context)
         )
 
-        if isQuickLootPending and not isQuickLootReady:
-            context['way'] = 'lootPending'
+        if hasCreaturesToAttackAfterCheck:
+            context['way'] = 'targeting'
             currentRootTask = (
                 currentTask.rootTask
                 if currentTask is not None and currentTask.rootTask is not None
                 else currentTask
             )
-            if (
+            hasAttackRootWithDifferentChaseMode = (
                 currentRootTask is not None
                 and currentRootTask.name == 'attackClosestCreature'
+                and getattr(currentRootTask, 'allowChase', False) != allowChase
+            )
+            if (
+                hasAttackRootWithDifferentChaseMode
+                or shouldAskForTargetingTasks(context)
             ):
-                context['tasksOrchestrator'].setRootTask(context, None)
-        elif hasCreaturesToAttackAfterCheck:
-            context['way'] = 'targeting'
-            if shouldAskForTargetingTasks(context):
-                currentRootTask = (
-                    currentTask.rootTask
-                    if currentTask is not None and currentTask.rootTask is not None
-                    else currentTask
-                )
                 hasMatchingAttackRoot = (
                     currentRootTask is not None
                     and currentRootTask.name == 'attackClosestCreature'
@@ -334,18 +308,28 @@ class PyTibiaThread:
                         allowChase=allowChase,
                     )
         else:
-            context['way'] = 'waypoint' if cavebotEnabled else None
-            currentTask = context['tasksOrchestrator'].getCurrentTask(context)
-            currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
-            waypoints = context['cavebot']['waypoints']['items']
-            if (
-                cavebotEnabled
-                and currentTask is None
-                and currentWaypointIndex is not None
-                and 0 <= currentWaypointIndex < len(waypoints)
-            ):
-                context['tasksOrchestrator'].setRootTask(
-                    context, resolveTasksByWaypoint(waypoints[currentWaypointIndex]))
+            if quickLootPending:
+                context['way'] = 'lootPending'
+                currentRootTask = (
+                    currentTask.rootTask
+                    if currentTask is not None and currentTask.rootTask is not None
+                    else currentTask
+                )
+                if currentRootTask is not None:
+                    context['tasksOrchestrator'].setRootTask(context, None)
+            else:
+                context['way'] = 'waypoint' if cavebotEnabled else None
+                currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+                currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
+                waypoints = context['cavebot']['waypoints']['items']
+                if (
+                    cavebotEnabled
+                    and currentTask is None
+                    and currentWaypointIndex is not None
+                    and 0 <= currentWaypointIndex < len(waypoints)
+                ):
+                    context['tasksOrchestrator'].setRootTask(
+                        context, resolveTasksByWaypoint(waypoints[currentWaypointIndex]))
 
         context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
         return context

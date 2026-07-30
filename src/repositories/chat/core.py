@@ -2,8 +2,8 @@ import pathlib
 from typing import Tuple, Union
 from src.shared.typings import BBox, GrayImage
 from src.repositories.gameWindow.core import getLeftArrowPosition
-from src.utils.core import cacheObjectPosition, hashit, locate, locateMultiple
-from src.utils.image import convertGraysToBlack, loadFromRGBToGray
+from src.utils.core import cacheObjectPosition, hashit, locate
+from src.utils.image import loadFromRGBToGray
 from .config import hashes
 
 
@@ -13,9 +13,10 @@ chatOnImg = loadFromRGBToGray(f'{currentPath}/images/chatOn.png')
 chatOnImgTemp = loadFromRGBToGray(f'{currentPath}/images/chatOnTemp.png')
 chatOffImg = loadFromRGBToGray(f'{currentPath}/images/chatOff.png')
 chatOffImg = loadFromRGBToGray(f'{currentPath}/images/chatOff.png')
-lootOfTextImg = loadFromRGBToGray(f'{currentPath}/images/lootOfText.png')
-nothingTextImg = loadFromRGBToGray(f'{currentPath}/images/nothingText.png')
-oldListOfLootCheck = []
+# Código original:
+# lootOfTextImg, nothingTextImg e oldListOfLootCheck alimentavam `hasNewLoot()`.
+# O detector integral está preservado em
+# `docs/historico-looting/chat-loot-detector.py.txt`.
 
 
 # TODO: add unit tests
@@ -50,51 +51,12 @@ def getTabs(screenshot: GrayImage):
     return tabs
 
 
-# TODO: add unit tests
-# TODO: add perf
-def hasNewLoot(screenshot: GrayImage) -> bool:
-    global oldListOfLootCheck
-    lootLines = getLootLines(screenshot)
-    if len(lootLines) == 0:
-        return False
-    listOfLootCheck = []
-    start = 5
-    if len(lootLines) - 5 <= 0:
-        start = len(lootLines)
-    for i in range(len(lootLines) - start, len(lootLines)):
-        listOfLootCheck.append(hashit(
-            convertGraysToBlack(lootLines[i][0])))
-    if len(listOfLootCheck) != 0 and len(oldListOfLootCheck) == 0:
-        oldListOfLootCheck = listOfLootCheck
-        return True
-    for newLootLine in listOfLootCheck:
-        if newLootLine not in oldListOfLootCheck:
-            oldListOfLootCheck = listOfLootCheck
-            return True
-    oldListOfLootCheck = listOfLootCheck
-    return False
+# Código original removido do runtime:
+# `hasNewLoot()` calculava rolling hashes das últimas linhas `Loot of`, e
+# `getLootLines()` localizava os templates `Loot of`/`nothing`. O snapshot
+# executável anterior está arquivado em
+# `docs/historico-looting/chat-loot-detector.py.txt`.
 
-
-# TODO: add unit tests
-# TODO: add perf
-def getLootLines(screenshot: GrayImage) -> GrayImage:
-    chatContainerPos = getChatMessagesContainerPosition(screenshot)
-    if chatContainerPos is None:
-        return []
-    # Código original:
-    # (x, y, w, h) = getChatMessagesContainerPosition(screenshot)
-    (x, y, w, h) = chatContainerPos
-    messages = screenshot[y: y + h, x: x + w]
-    lootLines = locateMultiple(lootOfTextImg, messages)
-    linesWithLoot = []
-    for line in lootLines:
-        line = x, line[1] + y, w, line[3]
-        lineImg = screenshot[line[1]:line[1] +
-                             line[3], line[0]:line[0] + line[2]]
-        nothingFound = locate(nothingTextImg, lineImg)
-        if nothingFound is None:
-            linesWithLoot.append((lineImg, line))
-    return linesWithLoot
 
 
 # TODO: add unit tests
