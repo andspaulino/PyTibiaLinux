@@ -43,6 +43,14 @@ class Application(tk.Tk):
         self.tabControl.pack(expand=1, fill='both')
 
         self.bind('<FocusIn>', self.focusIn)
+        self.protocol('WM_DELETE_WINDOW', self.close)
+
+    def close(self):
+        try:
+            self.context.pause()
+        finally:
+            self.context.context['shutdown'] = True
+            self.destroy()
 
     def focusIn(self, event):
         if event.widget == self:

@@ -1,4 +1,5 @@
 import pyautogui
+from contextlib import nullcontext
 from time import sleep, time
 import traceback
 # Código original:
@@ -31,12 +32,18 @@ pyautogui.PAUSE = 0
 
 class PyTibiaThread:
     # TODO: add typings
-    def __init__(self, context):
+    def __init__(self, context, uiEnabled=False):
         self.context = context
+        self.uiEnabled = uiEnabled
 
     def mainloop(self):
         # Seleção automática de janela no Linux (Modo CLI sem UI)
-        if self.context.context.get('window') is None:
+        # Código Linux anterior:
+        # if self.context.context.get('window') is None:
+        if (
+            not self.uiEnabled
+            and self.context.context.get('window') is None
+        ):
             from src.utils.window import get_tibia_windows
             windows = get_tibia_windows()
             if windows:
@@ -48,26 +55,42 @@ class PyTibiaThread:
 
         print("[PyTibia Engine] Loop de gameplay ativo.")
 
-        while True:
+        # Código original/Linux anterior:
+        # while True:
+        while not self.context.context.get('shutdown', False):
             try:
                 if self.context.context['pause']:
                     # Código original: continue
                     sleep(0.1)
                     continue
                 startTime = time()
-                self.context.context = self.handleGameData(
-                    self.context.context)
-                self.context.context = self.handleGameplayTasks(
-                    self.context.context)
-                self.context.context = self.context.context['tasksOrchestrator'].do(
-                    self.context.context)
-                self.context.context['radar']['lastCoordinateVisited'] = self.context.context['radar']['coordinate']
-                healingByPotions(self.context.context)
-                healingBySpells(self.context.context)
-                comboSpells(self.context.context)
-                swapAmulet(self.context.context)
-                swapRing(self.context.context)
-                eatFood(self.context.context)
+                gameplayLock = getattr(
+                    self.context,
+                    'gameplayLock',
+                    nullcontext(),
+                )
+                with gameplayLock:
+                    if (
+                        self.context.context.get('shutdown', False)
+                        or self.context.context['pause']
+                    ):
+                        continue
+                    self.context.context = self.handleGameData(
+                        self.context.context)
+                    self.context.context = self.handleGameplayTasks(
+                        self.context.context)
+                    self.context.context = self.context.context[
+                        'tasksOrchestrator'
+                    ].do(self.context.context)
+                    self.context.context['radar'][
+                        'lastCoordinateVisited'
+                    ] = self.context.context['radar']['coordinate']
+                    healingByPotions(self.context.context)
+                    healingBySpells(self.context.context)
+                    comboSpells(self.context.context)
+                    swapAmulet(self.context.context)
+                    swapRing(self.context.context)
+                    eatFood(self.context.context)
                 endTime = time()
                 diff = endTime - startTime
                 sleep(max(0.045 - diff, 0))

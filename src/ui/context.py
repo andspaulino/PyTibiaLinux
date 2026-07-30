@@ -1,4 +1,5 @@
 from os.path import exists
+from threading import RLock
 import time
 from tinydb import Query, TinyDB
 from tkinter import messagebox
@@ -11,6 +12,7 @@ class Context:
     filePath: str = 'file.json'
 
     def __init__(self, context):
+        self.gameplayLock = RLock()
         shouldInsertProfile = not exists(self.filePath)
         self.db = TinyDB(self.filePath)
         if shouldInsertProfile:
@@ -18,6 +20,8 @@ class Context:
         self.enabledProfile = self.getEnabledProfile()
         self.context = loadContextFromConfig(
             self.enabledProfile['config'], context)
+        self.context['pause'] = True
+        self.context['shutdown'] = False
 
     def updateMainBackpack(self, backpack: str):
         self.context['backpacks']['main'] = backpack
@@ -175,7 +179,12 @@ class Context:
             messagebox.showerror(
                 'Erro', 'Tibia window is not set!')
             return
-        self.context['window'].activate()
+        # Código original:
+        # self.context['window'].activate()
+        if not self.context['window'].activate():
+            messagebox.showerror(
+                'Erro', 'Não foi possível ativar a janela do Tibia.')
+            return
         time.sleep(1)
         screenshot = getScreenshot()
         # chatTabs = getTabs(screenshot)
@@ -183,12 +192,17 @@ class Context:
         #     messagebox.showerror(
         #         'Erro', 'Loot tab must be open!')
         #     return
-        self.context['pause'] = False
+        with self.gameplayLock:
+            if self.context.get('shutdown', False):
+                return
+            self.context['pause'] = False
 
     def pause(self):
-        self.context['pause'] = True
-        self.context['tasksOrchestrator'].setRootTask(self.context, None)
-        self.context['cavebot']['waypoints']['currentIndex'] = None
+        with self.gameplayLock:
+            self.context['pause'] = True
+            self.context['tasksOrchestrator'].setRootTask(
+                self.context, None)
+            self.context['cavebot']['waypoints']['currentIndex'] = None
 
     def toggleHealingPotionsByKey(self, healthPotionType, enabled):
         self.context['healing']['potions'][healthPotionType]['enabled'] = enabled

@@ -151,6 +151,7 @@ context = {
     },
     'lastPressedKey': None,
     'pause': True,
+    'shutdown': False,
     'radar': {
         'coordinate': None,
         'previousCoordinate': None,
