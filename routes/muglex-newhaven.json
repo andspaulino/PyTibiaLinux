@@ -3,27 +3,163 @@
   "name": "Muglex Newhaven",
   "waypoints": [
     {
-      "label": "route-1",
+      "label": "",
       "type": "walk",
-      "coordinate": [32562, 32480, 7],
+      "coordinate": [
+        32556,
+        32472,
+        7
+      ],
       "options": {}
     },
     {
-      "label": "route-2",
+      "label": "",
       "type": "walk",
-      "coordinate": [32557, 32473, 7],
+      "coordinate": [
+        32545,
+        32471,
+        7
+      ],
       "options": {}
     },
     {
-      "label": "route-3",
+      "label": "",
       "type": "walk",
-      "coordinate": [32564, 32471, 7],
+      "coordinate": [
+        32535,
+        32470,
+        7
+      ],
       "options": {}
     },
     {
-      "label": "route-4",
+      "label": "",
       "type": "walk",
-      "coordinate": [32568, 32476, 7],
+      "coordinate": [
+        32531,
+        32463,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32531,
+        32452,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32526,
+        32440,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32522,
+        32430,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32527,
+        32422,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32537,
+        32415,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32551,
+        32412,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32562,
+        32414,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32558,
+        32423,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32560,
+        32435,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32565,
+        32450,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32565,
+        32460,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32563,
+        32468,
+        7
+      ],
       "options": {}
     }
   ]
