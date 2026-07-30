@@ -1,26 +1,83 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
-from src.repositories.radar.core import getCoordinate
-from src.utils.core import getScreenshot
+from copy import deepcopy
+from tkinter import messagebox, simpledialog, ttk
+
 from .baseModal import BaseModal
-from .refillModal import RefillModal
 from .refillCheckerModal import RefillCheckerModal
+from .refillModal import RefillModal
+
+from src.repositories.radar.core import getCoordinate
+from src.routes.draft import RouteDraft
+from src.routes.store import DEFAULT_ROUTES_DIRECTORY, RouteStore
+from src.utils.core import getScreenshot
 
 
 class CavebotPage(tk.Frame):
     def __init__(self, parent, context):
         super().__init__(parent)
         self.context = context
+        self.routeStore = RouteStore(DEFAULT_ROUTES_DIRECTORY)
+        selectedRouteId = context.enabledProfile['config']['cavebot'].get(
+            'routeId'
+        )
+        initialRouteError = None
+        try:
+            self.routeDraft = (
+                RouteDraft.open(self.routeStore, selectedRouteId)
+                if selectedRouteId is not None
+                else RouteDraft.create('New route')
+            )
+        except (OSError, ValueError) as error:
+            self.routeDraft = RouteDraft.create('Recovered route')
+            initialRouteError = str(error)
         self.columnconfigure(0, weight=8)
         self.columnconfigure(1, weight=2)
-        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=1)
         self.baseModal = None
         self.refillModal = None
         self.refillCheckerModal = None
 
+        self.routesFrame = tk.LabelFrame(
+            self, text='Route', padx=10, pady=10)
+        self.routesFrame.grid(
+            column=0, row=0, columnspan=2, padx=10, pady=10, sticky='ew')
+        self.routesFrame.columnconfigure(1, weight=1)
+
+        tk.Label(self.routesFrame, text='Route:').grid(
+            row=0, column=0, padx=5)
+        self.routeSelection = tk.StringVar(
+            value=self.routeDraft.routeId or '')
+        self.routesCombo = ttk.Combobox(
+            self.routesFrame,
+            textvariable=self.routeSelection,
+            state='readonly',
+        )
+        self.routesCombo.grid(row=0, column=1, padx=5, sticky='ew')
+        tk.Button(
+            self.routesFrame, text='New', command=self.newRoute
+        ).grid(row=0, column=2, padx=5)
+        tk.Button(
+            self.routesFrame, text='Open', command=self.openSelectedRoute
+        ).grid(row=0, column=3, padx=5)
+        tk.Button(
+            self.routesFrame, text='Save', command=self.saveRoute
+        ).grid(row=0, column=4, padx=5)
+        tk.Button(
+            self.routesFrame, text='Save as', command=self.saveRouteAs
+        ).grid(row=0, column=5, padx=5)
+        self.refreshRouteChoices()
+        if initialRouteError is not None:
+            self.after_idle(
+                lambda error=initialRouteError: messagebox.showerror(
+                    'Unable to open selected route',
+                    error,
+                    parent=self,
+                )
+            )
+
         self.tableFrame = tk.LabelFrame(
             self, text='Waypoints', padx=10, pady=10)
-        self.tableFrame.grid(column=0, row=0, rowspan=2, padx=10,
+        self.tableFrame.grid(column=0, row=1, rowspan=2, padx=10,
                              pady=10, sticky='nsew')
         self.tableFrame.rowconfigure(0, weight=1)
         self.tableFrame.columnconfigure(0, weight=1)
@@ -41,14 +98,12 @@ class CavebotPage(tk.Frame):
 
         self.table.bind('<Double-1>', self.onWaypointDoubleClick)
 
-        for waypoint in context.context['cavebot']['waypoints']['items']:
-            self.table.insert('', 'end', values=(
-                waypoint['label'], waypoint['type'], waypoint['coordinate'], waypoint['options']))
+        self.refreshWaypointsTable()
 
         self.waypointDirection = tk.StringVar(value='center')
         self.directionsFrame = tk.LabelFrame(
             self, text='Directions', padx=10, pady=10)
-        self.directionsFrame.grid(column=1, row=0, padx=10,
+        self.directionsFrame.grid(column=1, row=1, padx=10,
                                   pady=10, sticky='nsew')
         self.directionsFrame.columnconfigure(0, weight=1)
         self.directionsFrame.columnconfigure(1, weight=1)
@@ -76,7 +131,7 @@ class CavebotPage(tk.Frame):
 
         self.actionsFrame = tk.LabelFrame(
             self, text='Actions', padx=10, pady=10)
-        self.actionsFrame.grid(column=1, row=1, padx=10,
+        self.actionsFrame.grid(column=1, row=2, padx=10,
                                pady=10, sticky='nsew')
         self.actionsFrame.columnconfigure(0, weight=1, uniform='equal')
         self.actionsFrame.columnconfigure(1, weight=1, uniform='equal')
@@ -129,6 +184,163 @@ class CavebotPage(tk.Frame):
         self.refillCheckerButton.grid(
             row=5, column=1, padx=5, pady=5, sticky='nsew')
 
+        for unsupportedButton in (
+            self.useTeleportButton,
+            self.ropeButton,
+            self.shovelButton,
+            self.moveUpButton,
+            self.moveDownButton,
+            self.depositGoldButton,
+            self.depositItemsButton,
+            self.dropFlasksButton,
+            self.refillButton,
+            self.refillCheckerButton,
+        ):
+            unsupportedButton.configure(state=tk.DISABLED)
+
+    def refreshRouteChoices(self):
+        try:
+            routeIds = [
+                routeFile.removesuffix('.json')
+                for routeFile in self.routeStore.listRoutes()
+            ]
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.routesCombo['values'] = routeIds
+
+    def _hasOpenWaypointModal(self):
+        return any(
+            modal is not None and modal.winfo_exists()
+            for modal in (
+                self.baseModal,
+                self.refillModal,
+                self.refillCheckerModal,
+            )
+        )
+
+    def _canReplaceDraft(self):
+        if self._hasOpenWaypointModal():
+            messagebox.showerror(
+                'Close waypoint editor',
+                'Close the open waypoint editor before changing routes.',
+                parent=self,
+            )
+            return False
+        if not self.routeDraft.isDirty:
+            return True
+        return messagebox.askyesno(
+            'Discard changes?',
+            'The current route has unsaved changes. Discard them?',
+            parent=self,
+        )
+
+    def _restoreRouteSelection(self):
+        self.routeSelection.set(self.routeDraft.routeId or '')
+
+    def refreshWaypointsTable(self):
+        for item in self.table.get_children():
+            self.table.delete(item)
+        for waypoint in self.routeDraft.document['waypoints']:
+            self.table.insert('', 'end', values=(
+                waypoint['label'],
+                waypoint['type'],
+                waypoint['coordinate'],
+                waypoint['options'],
+            ))
+
+    def newRoute(self):
+        if not self._canReplaceDraft():
+            self._restoreRouteSelection()
+            return
+        name = simpledialog.askstring(
+            'New route',
+            'Route name:',
+            parent=self,
+        )
+        if name is None:
+            return
+        try:
+            self.routeDraft = RouteDraft.create(name)
+        except ValueError as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.routeSelection.set('')
+        self.refreshWaypointsTable()
+
+    def openSelectedRoute(self):
+        routeId = self.routeSelection.get()
+        if routeId == '':
+            messagebox.showerror(
+                'Error', 'Select a route to open.', parent=self)
+            self._restoreRouteSelection()
+            return
+        if not self._canReplaceDraft():
+            self._restoreRouteSelection()
+            return
+        try:
+            self.routeDraft = RouteDraft.open(self.routeStore, routeId)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            self._restoreRouteSelection()
+            return
+        self.routeSelection.set(routeId)
+        self.refreshWaypointsTable()
+
+    def saveRoute(self):
+        if self.routeDraft.routeId is None:
+            self.saveRouteAs()
+            return
+        try:
+            self.routeDraft.save(self.routeStore)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.routeSelection.set(self.routeDraft.routeId)
+        self.refreshRouteChoices()
+
+    def saveRouteAs(self):
+        routeId = simpledialog.askstring(
+            'Save route as',
+            'Route ID:',
+            initialvalue=self.routeDraft.routeId or '',
+            parent=self,
+        )
+        if routeId is None:
+            return
+        name = simpledialog.askstring(
+            'Save route as',
+            'Route name:',
+            initialvalue=self.routeDraft.document['name'],
+            parent=self,
+        )
+        if name is None:
+            return
+        routeFile = f'{routeId}.json'
+        try:
+            routeAlreadyExists = routeFile in self.routeStore.listRoutes()
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        if (
+            routeId != self.routeDraft.routeId
+            and routeAlreadyExists
+            and not messagebox.askyesno(
+                'Overwrite route?',
+                f'{routeFile} already exists. Replace it?',
+                parent=self,
+            )
+        ):
+            return
+        try:
+            self.routeDraft.saveAs(self.routeStore, routeId, name)
+        except (OSError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.routeSelection.set(routeId)
+        self.refreshRouteChoices()
+        self.refreshWaypointsTable()
+
     def openBaseModal(self):
         if self.baseModal is None or not self.baseModal.winfo_exists():
             self.baseModal = BaseModal(self, onConfirm=lambda label, options: self.addWaypoint(
@@ -149,7 +361,10 @@ class CavebotPage(tk.Frame):
                 'refillChecker', options), waypointsLabels=waypointsLabels)
 
     # TODO: verificar se a coordenada é walkable
-    def addWaypoint(self, waypointType, options={}):
+    # Código original:
+    # def addWaypoint(self, waypointType, options={}):
+    def addWaypoint(self, waypointType, options=None):
+        waypointOptions = {} if options is None else deepcopy(options)
         screenshot = getScreenshot()
         coordinate = getCoordinate(screenshot)
         if coordinate is None:
@@ -166,29 +381,53 @@ class CavebotPage(tk.Frame):
         elif waypointDirection == 'west':
             coordinate = (coordinate[0] - 1, coordinate[1], coordinate[2])
         waypoint = {'label': '', 'type': waypointType,
-                    'coordinate': coordinate, 'options': options}
+                    'coordinate': coordinate, 'options': waypointOptions}
         if waypointType == 'moveUp' or waypointType == 'moveDown':
             if waypointDirection == 'center':
                 messagebox.showerror(
                     'Erro', 'Move Down or Move Up waypoint always needs a direction(North, West, East, South)')
                 return
             waypoint['options']['direction'] = waypointDirection
-        self.context.addWaypoint(waypoint)
-        self.table.insert('', 'end', values=(
-            waypoint['label'], waypoint['type'], waypoint['coordinate'], waypoint['options']))
+        # Código original:
+        # self.context.addWaypoint(waypoint)
+        # self.table.insert('', 'end', values=(
+        #     waypoint['label'], waypoint['type'], waypoint['coordinate'], waypoint['options']))
+        try:
+            self.routeDraft.addWaypoint(waypoint)
+        except ValueError as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.refreshWaypointsTable()
 
     def removeSelectedWaypoints(self, _):
+        if self._hasOpenWaypointModal():
+            messagebox.showerror(
+                'Close waypoint editor',
+                'Close the open waypoint editor before removing waypoints.',
+                parent=self,
+            )
+            return
         selectedWaypoints = self.table.selection()
-        for waypoint in selectedWaypoints:
-            index = self.table.index(waypoint)
-            self.table.delete(waypoint)
-            self.context.removeWaypointByIndex(index)
+        selectedIndexes = sorted(
+            (self.table.index(waypoint) for waypoint in selectedWaypoints),
+            reverse=True,
+        )
+        # Código original:
+        # for waypoint in selectedWaypoints:
+        #     index = self.table.index(waypoint)
+        #     self.table.delete(waypoint)
+        #     self.context.removeWaypointByIndex(index)
+        for index in selectedIndexes:
+            self.routeDraft.removeWaypoint(index)
+        self.refreshWaypointsTable()
 
     def onWaypointDoubleClick(self, event):
         item = self.table.identify_row(event.y)
         if item:
             index = self.table.index(item)
-            waypoint = self.context.context['cavebot']['waypoints']['items'][index]
+            # Código original:
+            # waypoint = self.context.context['cavebot']['waypoints']['items'][index]
+            waypoint = self.routeDraft.document['waypoints'][index]
             if waypoint['type'] == 'refill':
                 if self.refillModal is None or not self.refillModal.winfo_exists():
                     self.refillModal = RefillModal(
@@ -203,13 +442,34 @@ class CavebotPage(tk.Frame):
                     self.baseModal = BaseModal(
                         self, waypoint=waypoint, onConfirm=lambda label, options: self.updateWaypointByIndex(index, label=label, options=options))
 
-    def updateWaypointByIndex(self, index, label=None, options={}):
-        self.context.updateWaypointByIndex(index, label=label, options=options)
-        selecionado = self.table.focus()
-        if selecionado:
-            currentValues = self.table.item(selecionado)['values']
-            if label is not None:
-                currentValues[0] = label
-            currentValues[3] = options
-            self.table.item(selecionado, values=currentValues)
-            self.table.update()
+    # Código original:
+    # def updateWaypointByIndex(self, index, label=None, options={}):
+    def updateWaypointByIndex(self, index, label=None, options=None):
+        # Código original:
+        # self.context.updateWaypointByIndex(
+        #     index, label=label, options=options)
+        # selecionado = self.table.focus()
+        # if selecionado:
+        #     currentValues = self.table.item(selecionado)['values']
+        #     if label is not None:
+        #         currentValues[0] = label
+        #     currentValues[3] = options
+        #     self.table.item(selecionado, values=currentValues)
+        #     self.table.update()
+        try:
+            waypoint = deepcopy(
+                self.routeDraft.document['waypoints'][index]
+            )
+        except IndexError as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        if label is not None:
+            waypoint['label'] = label
+        if options is not None:
+            waypoint['options'] = deepcopy(options)
+        try:
+            self.routeDraft.updateWaypoint(index, waypoint)
+        except (IndexError, ValueError) as error:
+            messagebox.showerror('Error', str(error), parent=self)
+            return
+        self.refreshWaypointsTable()
