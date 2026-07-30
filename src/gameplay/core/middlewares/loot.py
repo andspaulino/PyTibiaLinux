@@ -1,6 +1,9 @@
 from time import time
 
+from src.repositories.chat.core import hasNewLoot, resetLootBaseline
+
 from ...typings import Context
+from ..tasks.selectChatTab import SelectChatTabTask
 
 
 QUICK_LOOT_NEARBY_SLOTS = {
@@ -11,12 +14,9 @@ QUICK_LOOT_NEARBY_SLOTS = {
 
 
 # Código Linux anterior:
-# - importava `hasNewLoot` da aba Loot;
-# - acumulava 12 frames da Game Window;
-# - classificava Loot Highlighting por magnitude, geometria e assinatura temporal;
-# - mantinha confirmação visual, retries e estados de ausência.
-# A implementação integral foi preservada para consulta em:
-# `docs/historico-looting/loot-highlighting-middleware.py.txt`.
+# a morte era inferida quando `previousTargetCreature` desaparecia entre dois
+# frames da Game Window. O snapshot está preservado em
+# `docs/historico-looting/loot-disappearance-middleware.py.txt`.
 
 
 def _getCreatureSlot(creature):
@@ -31,53 +31,50 @@ def hasAdjacentMonster(context: Context) -> bool:
     )
 
 
-def setLootDeathMiddleware(context: Context) -> Context:
+def setLootChatMiddleware(context: Context) -> Context:
     lootState = context.setdefault('loot', {})
     lootState.setdefault('pending', False)
-    lootState.setdefault('pendingSlot', None)
     lootState.setdefault('detectedAt', None)
     lootState.setdefault('quickLootCooldownUntil', 0)
+    lootState.setdefault('chatMonitoringEnabled', False)
 
-    if not lootState.get('enabled', False) or lootState['pending']:
+    if not lootState.get('enabled', False):
+        if lootState['chatMonitoringEnabled']:
+            resetLootBaseline()
+        lootState['chatMonitoringEnabled'] = False
         return context
 
-    cavebotState = context.get('cavebot', {})
-    previousTarget = cavebotState.get('previousTargetCreature')
-    if previousTarget is None:
+    if not lootState['chatMonitoringEnabled']:
+        resetLootBaseline()
+        lootState['chatMonitoringEnabled'] = True
+
+    lootTab = context.get('chat', {}).get('tabs', {}).get('loot')
+    if lootTab is None:
         return context
 
-    previousTargetSlot = _getCreatureSlot(previousTarget)
-    if previousTargetSlot not in QUICK_LOOT_NEARBY_SLOTS:
-        return context
-
-    gameWindowState = context.get('gameWindow', {})
-    previousSlots = {
-        slot
-        for slot in (
-            _getCreatureSlot(monster)
-            for monster in gameWindowState.get('previousMonsters', [])
+    if not lootTab.get('isSelected', False):
+        currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+        currentRootTask = (
+            currentTask.rootTask
+            if currentTask is not None and currentTask.rootTask is not None
+            else currentTask
         )
-        if slot is not None
-    }
-    if previousTargetSlot not in previousSlots:
+        if (
+            currentRootTask is None
+            or currentRootTask.name != 'selectChatTab'
+        ):
+            context['tasksOrchestrator'].setRootTask(
+                context,
+                SelectChatTabTask('loot'),
+            )
         return context
 
-    currentMonsters = gameWindowState.get('monsters', [])
-    currentSlots = {
-        slot
-        for slot in (_getCreatureSlot(monster) for monster in currentMonsters)
-        if slot is not None
-    }
-    currentTargetExists = any(
-        monster.get('isBeingAttacked', False)
-        for monster in currentMonsters
-    )
-    if currentTargetExists or previousTargetSlot in currentSlots:
+    hasNewLootLine = hasNewLoot(context['screenshot'])
+    isQuickLootInCooldown = time() < lootState['quickLootCooldownUntil']
+    if hasNewLootLine and isQuickLootInCooldown:
         return context
-
-    lootState['pending'] = True
-    lootState['pendingSlot'] = previousTargetSlot
-    lootState['detectedAt'] = time()
-    cavebotState['previousTargetCreature'] = None
-    print(f'[Loot] Morte detectada no 3x3 slot={previousTargetSlot}')
+    if hasNewLootLine:
+        lootState['pending'] = True
+        lootState['detectedAt'] = time()
+        print('[Loot] Nova linha Loot of detectada')
     return context

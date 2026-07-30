@@ -1,8 +1,12 @@
 import pathlib
 from typing import Tuple, Union
+
+import numpy as np
 from src.shared.typings import BBox, GrayImage
 from src.repositories.gameWindow.core import getLeftArrowPosition
-from src.utils.core import cacheObjectPosition, hashit, locate
+from src.utils.core import cacheObjectPosition, hashit, locate, locateMultiple
+# Código original:
+# from src.utils.image import convertGraysToBlack, loadFromRGBToGray
 from src.utils.image import loadFromRGBToGray
 from .config import hashes
 
@@ -13,10 +17,12 @@ chatOnImg = loadFromRGBToGray(f'{currentPath}/images/chatOn.png')
 chatOnImgTemp = loadFromRGBToGray(f'{currentPath}/images/chatOnTemp.png')
 chatOffImg = loadFromRGBToGray(f'{currentPath}/images/chatOff.png')
 chatOffImg = loadFromRGBToGray(f'{currentPath}/images/chatOff.png')
+lootOfTextImg = loadFromRGBToGray(f'{currentPath}/images/lootOfText.png')
+nothingTextImg = loadFromRGBToGray(f'{currentPath}/images/nothingText.png')
 # Código original:
-# lootOfTextImg, nothingTextImg e oldListOfLootCheck alimentavam `hasNewLoot()`.
-# O detector integral está preservado em
-# `docs/historico-looting/chat-loot-detector.py.txt`.
+# oldListOfLootCheck = []
+# A adaptação usa `None` para criar o baseline inicial sem falso evento.
+oldListOfLootCheck: list | None = None
 
 
 # TODO: add unit tests
@@ -51,11 +57,57 @@ def getTabs(screenshot: GrayImage):
     return tabs
 
 
-# Código original removido do runtime:
-# `hasNewLoot()` calculava rolling hashes das últimas linhas `Loot of`, e
-# `getLootLines()` localizava os templates `Loot of`/`nothing`. O snapshot
-# executável anterior está arquivado em
-# `docs/historico-looting/chat-loot-detector.py.txt`.
+def resetLootBaseline() -> None:
+    global oldListOfLootCheck
+    oldListOfLootCheck = None
+
+
+def normalizeLootLine(lineImage: GrayImage) -> GrayImage:
+    # Código original:
+    # return convertGraysToBlack(lineImage)
+    return np.where(lineImage > 100, 255, 0).astype(np.uint8)
+
+
+def hasNewLoot(screenshot: GrayImage) -> bool:
+    global oldListOfLootCheck
+    lootLines = getLootLines(screenshot)
+    listOfLootCheck = [
+        hashit(normalizeLootLine(lineImage))
+        for lineImage, _ in lootLines[-5:]
+    ]
+    # Código original:
+    # if len(listOfLootCheck) != 0 and len(oldListOfLootCheck) == 0:
+    #     oldListOfLootCheck = listOfLootCheck
+    #     return True
+    if oldListOfLootCheck is None:
+        oldListOfLootCheck = listOfLootCheck
+        return False
+    previousLootHashes = oldListOfLootCheck
+    hasNewLine = any(
+        lootLineHash not in previousLootHashes
+        for lootLineHash in listOfLootCheck
+    )
+    oldListOfLootCheck = listOfLootCheck
+    return hasNewLine
+
+
+def getLootLines(screenshot: GrayImage) -> list:
+    chatContainerPos = getChatMessagesContainerPosition(screenshot)
+    if chatContainerPos is None:
+        return []
+    (x, y, w, h) = chatContainerPos
+    messages = screenshot[y:y + h, x:x + w]
+    lootLines = locateMultiple(lootOfTextImg, messages) or []
+    linesWithLoot = []
+    for line in lootLines:
+        line = x, line[1] + y, w, line[3]
+        lineImg = screenshot[line[1]:line[1] +
+                             line[3], line[0]:line[0] + line[2]]
+        nothingFound = locate(nothingTextImg, lineImg)
+        if nothingFound is None:
+            linesWithLoot.append((lineImg, line))
+    return linesWithLoot
+
 
 
 
@@ -95,4 +147,11 @@ def getChatMessagesContainerPosition(screenshot: GrayImage) -> BBox:
         return None
     # Código original:
     # return leftSidebarArrows[0] + 5, chatMenu[1] + 18, chatStatus[0][0] + 40, (chatStatus[0][1] - 6) - (chatMenu[1] + 13)
-    return leftSidebarArrows[0] + 5, chatMenu[1] + 18, chatStatus[0][0] + 40, (chatStatus[0][1] - 6) - (chatMenu[1] + 13)
+    left = leftSidebarArrows[0] + 5
+    right = chatStatus[0][0] + 40
+    return (
+        left,
+        chatMenu[1] + 18,
+        right - left,
+        (chatStatus[0][1] - 6) - (chatMenu[1] + 13),
+    )

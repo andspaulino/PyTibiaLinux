@@ -26,13 +26,11 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # o input iniciava confirmação por Loot Highlighting, registrava slots,
         # contava ausência e podia agendar até dois retries. A implementação
         # integral está em `docs/historico-looting/loot-highlighting-middleware.py.txt`.
-        pendingSlot = lootState.get('pendingSlot')
         utilsKeyboard.hotkey(*keys)
         now = time()
         lootState['pending'] = False
-        lootState['pendingSlot'] = None
         lootState['detectedAt'] = None
         lootState['lastQuickLootAt'] = now
         lootState['quickLootCooldownUntil'] = now + 0.7
-        print(f'[Loot] Quick Loot enviado por {hotkey} slot={pendingSlot}')
+        print(f'[Loot] Quick Loot enviado por {hotkey}')
         return context
