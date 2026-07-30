@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "name": "dp-carlin",
+  "waypoints": [
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32335,
+        31780,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32338,
+        31785,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32341,
+        31775,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32332,
+        31775,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32323,
+        31777,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "",
+      "type": "walk",
+      "coordinate": [
+        32327,
+        31783,
+        7
+      ],
+      "options": {}
+    }
+  ]
+}

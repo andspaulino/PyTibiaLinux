@@ -53,19 +53,34 @@ class CavebotPage(tk.Frame):
             state='readonly',
         )
         self.routesCombo.grid(row=0, column=1, padx=5, sticky='ew')
-        tk.Button(
+        self.newRouteButton = tk.Button(
             self.routesFrame, text='New', command=self.newRoute
-        ).grid(row=0, column=2, padx=5)
-        tk.Button(
+        )
+        self.newRouteButton.grid(row=0, column=2, padx=5)
+        self.openRouteButton = tk.Button(
             self.routesFrame, text='Open', command=self.openSelectedRoute
-        ).grid(row=0, column=3, padx=5)
-        tk.Button(
+        )
+        self.openRouteButton.grid(row=0, column=3, padx=5)
+        self.saveRouteButton = tk.Button(
             self.routesFrame, text='Save', command=self.saveRoute
-        ).grid(row=0, column=4, padx=5)
-        tk.Button(
+        )
+        self.saveRouteButton.grid(row=0, column=4, padx=5)
+        self.saveRouteAsButton = tk.Button(
             self.routesFrame, text='Save as', command=self.saveRouteAs
-        ).grid(row=0, column=5, padx=5)
+        )
+        self.saveRouteAsButton.grid(row=0, column=5, padx=5)
+        self.activateRouteButton = tk.Button(
+            self.routesFrame, text='Activate', command=self.activateRoute
+        )
+        self.activateRouteButton.grid(row=0, column=6, padx=5)
+        self.activeRouteStatus = tk.StringVar()
+        tk.Label(
+            self.routesFrame,
+            textvariable=self.activeRouteStatus,
+            anchor='w',
+        ).grid(row=1, column=0, columnspan=7, padx=5, pady=(8, 0), sticky='ew')
         self.refreshRouteChoices()
+        self.refreshActiveRouteStatus()
         if initialRouteError is not None:
             self.after_idle(
                 lambda error=initialRouteError: messagebox.showerror(
@@ -198,6 +213,23 @@ class CavebotPage(tk.Frame):
         ):
             unsupportedButton.configure(state=tk.DISABLED)
 
+    def _requirePaused(self):
+        if self.context.context.get('pause', False):
+            return True
+        messagebox.showerror(
+            'Pause required',
+            'Pause the bot before editing or activating routes.',
+            parent=self,
+        )
+        return False
+
+    def refreshActiveRouteStatus(self):
+        routeId = self.context.getActiveRouteId()
+        status = f'Active route: {routeId or "None"}'
+        if getattr(self.context, 'routeApplicationPending', False) is True:
+            status += ' (saved changes pending application)'
+        self.activeRouteStatus.set(status)
+
     def refreshRouteChoices(self):
         try:
             routeIds = [
@@ -250,6 +282,8 @@ class CavebotPage(tk.Frame):
             ))
 
     def newRoute(self):
+        if not self._requirePaused():
+            return
         if not self._canReplaceDraft():
             self._restoreRouteSelection()
             return
@@ -269,6 +303,9 @@ class CavebotPage(tk.Frame):
         self.refreshWaypointsTable()
 
     def openSelectedRoute(self):
+        if not self._requirePaused():
+            self._restoreRouteSelection()
+            return
         routeId = self.routeSelection.get()
         if routeId == '':
             messagebox.showerror(
@@ -288,18 +325,55 @@ class CavebotPage(tk.Frame):
         self.refreshWaypointsTable()
 
     def saveRoute(self):
+        if not self._requirePaused():
+            return
         if self.routeDraft.routeId is None:
             self.saveRouteAs()
             return
+        isActiveRoute = (
+            self.routeDraft.routeId == self.context.getActiveRouteId()
+        )
+        if isActiveRoute and not messagebox.askyesno(
+            'Save and apply active route?',
+            'This route is active. Save and apply its changes now?',
+            parent=self,
+        ):
+            return
+        previousPendingState = getattr(
+            self.context,
+            'routeApplicationPending',
+            False,
+        )
+        if isActiveRoute:
+            self.context.routeApplicationPending = True
         try:
             self.routeDraft.save(self.routeStore)
         except (OSError, ValueError) as error:
+            self.context.routeApplicationPending = previousPendingState
             messagebox.showerror('Error', str(error), parent=self)
+            self.refreshActiveRouteStatus()
             return
+        if isActiveRoute:
+            try:
+                self.context.activateRoute(
+                    self.routeDraft.routeId,
+                    routeStore=self.routeStore,
+                )
+            except (OSError, RuntimeError, ValueError) as error:
+                messagebox.showerror(
+                    'Route saved but not applied',
+                    str(error),
+                    parent=self,
+                )
+                self.refreshActiveRouteStatus()
+                return
         self.routeSelection.set(self.routeDraft.routeId)
         self.refreshRouteChoices()
+        self.refreshActiveRouteStatus()
 
     def saveRouteAs(self):
+        if not self._requirePaused():
+            return
         routeId = simpledialog.askstring(
             'Save route as',
             'Route ID:',
@@ -332,14 +406,74 @@ class CavebotPage(tk.Frame):
             )
         ):
             return
+        isActiveRoute = routeId == self.context.getActiveRouteId()
+        if isActiveRoute and not messagebox.askyesno(
+            'Save and apply active route?',
+            'This route is active. Save and apply its changes now?',
+            parent=self,
+        ):
+            return
+        previousPendingState = getattr(
+            self.context,
+            'routeApplicationPending',
+            False,
+        )
+        if isActiveRoute:
+            self.context.routeApplicationPending = True
         try:
             self.routeDraft.saveAs(self.routeStore, routeId, name)
         except (OSError, ValueError) as error:
+            self.context.routeApplicationPending = previousPendingState
             messagebox.showerror('Error', str(error), parent=self)
+            self.refreshActiveRouteStatus()
             return
+        if isActiveRoute:
+            try:
+                self.context.activateRoute(
+                    routeId,
+                    routeStore=self.routeStore,
+                )
+            except (OSError, RuntimeError, ValueError) as error:
+                messagebox.showerror(
+                    'Route saved but not applied',
+                    str(error),
+                    parent=self,
+                )
+                self.refreshActiveRouteStatus()
+                return
         self.routeSelection.set(routeId)
         self.refreshRouteChoices()
         self.refreshWaypointsTable()
+        self.refreshActiveRouteStatus()
+
+    def activateRoute(self):
+        if not self._requirePaused():
+            return
+        if self.routeDraft.isDirty:
+            messagebox.showerror(
+                'Unsaved route',
+                'Save or discard the route changes before activating it.',
+                parent=self,
+            )
+            return
+        routeId = self.routeDraft.routeId
+        if routeId is None:
+            messagebox.showerror(
+                'Unsaved route',
+                'Save the route before activating it.',
+                parent=self,
+            )
+            return
+        try:
+            self.context.activateRoute(
+                routeId,
+                routeStore=self.routeStore,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            messagebox.showerror('Unable to activate route', str(error), parent=self)
+            self.refreshActiveRouteStatus()
+            return
+        self.refreshActiveRouteStatus()
 
     def openBaseModal(self):
         if self.baseModal is None or not self.baseModal.winfo_exists():
@@ -364,6 +498,8 @@ class CavebotPage(tk.Frame):
     # Código original:
     # def addWaypoint(self, waypointType, options={}):
     def addWaypoint(self, waypointType, options=None):
+        if not self._requirePaused():
+            return
         waypointOptions = {} if options is None else deepcopy(options)
         screenshot = getScreenshot()
         coordinate = getCoordinate(screenshot)
@@ -400,6 +536,8 @@ class CavebotPage(tk.Frame):
         self.refreshWaypointsTable()
 
     def removeSelectedWaypoints(self, _):
+        if not self._requirePaused():
+            return
         if self._hasOpenWaypointModal():
             messagebox.showerror(
                 'Close waypoint editor',
@@ -422,6 +560,8 @@ class CavebotPage(tk.Frame):
         self.refreshWaypointsTable()
 
     def onWaypointDoubleClick(self, event):
+        if not self._requirePaused():
+            return
         item = self.table.identify_row(event.y)
         if item:
             index = self.table.index(item)
@@ -445,6 +585,8 @@ class CavebotPage(tk.Frame):
     # Código original:
     # def updateWaypointByIndex(self, index, label=None, options={}):
     def updateWaypointByIndex(self, index, label=None, options=None):
+        if not self._requirePaused():
+            return
         # Código original:
         # self.context.updateWaypointByIndex(
         #     index, label=label, options=options)

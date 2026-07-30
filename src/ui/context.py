@@ -1,3 +1,4 @@
+from copy import deepcopy
 from os.path import exists
 from threading import RLock
 import time
@@ -5,6 +6,7 @@ from tinydb import Query, TinyDB
 from tkinter import messagebox
 from src.gameplay.core.load import loadContextFromConfig
 from src.repositories.chat.core import getTabs
+from src.routes.store import DEFAULT_ROUTES_DIRECTORY, RouteStore
 from src.utils.core import getScreenshot
 
 
@@ -22,6 +24,7 @@ class Context:
             self.enabledProfile['config'], context)
         self.context['pause'] = True
         self.context['shutdown'] = False
+        self.routeApplicationPending = False
 
     def updateMainBackpack(self, backpack: str):
         self.context['backpacks']['main'] = backpack
@@ -174,7 +177,53 @@ class Context:
             index)
         self.db.update(self.enabledProfile)
 
+    def getActiveRouteId(self):
+        return self.enabledProfile['config']['cavebot'].get('routeId')
+
+    def activateRoute(self, routeId, routeStore=None):
+        selectedRouteStore = (
+            routeStore
+            if routeStore is not None
+            else RouteStore(DEFAULT_ROUTES_DIRECTORY)
+        )
+        with self.gameplayLock:
+            if not self.context.get('pause', False):
+                raise RuntimeError('Pause the bot before activating a route.')
+
+            route = selectedRouteStore.load(f'{routeId}.json')
+            routeWaypoints = deepcopy(route['waypoints'])
+            previousPendingState = self.routeApplicationPending
+            self.routeApplicationPending = True
+            cavebotConfig = self.enabledProfile['config']['cavebot']
+            previousRouteId = cavebotConfig.get('routeId')
+            hadPreviousRouteId = 'routeId' in cavebotConfig
+            cavebotConfig['routeId'] = routeId
+            try:
+                self.db.update(self.enabledProfile)
+            except Exception:
+                if hadPreviousRouteId:
+                    cavebotConfig['routeId'] = previousRouteId
+                else:
+                    cavebotConfig.pop('routeId', None)
+                self.routeApplicationPending = previousPendingState
+                raise
+
+            self.context['tasksOrchestrator'].setRootTask(
+                self.context,
+                None,
+            )
+            self.context['cavebot']['waypoints']['items'] = routeWaypoints
+            self.context['cavebot']['waypoints']['currentIndex'] = None
+            self.context['cavebot']['waypoints']['state'] = None
+            self.routeApplicationPending = False
+
     def play(self):
+        if getattr(self, 'routeApplicationPending', False):
+            messagebox.showerror(
+                'Erro',
+                'The active route has saved changes pending application.',
+            )
+            return
         if self.context['window'] is None:
             messagebox.showerror(
                 'Erro', 'Tibia window is not set!')
