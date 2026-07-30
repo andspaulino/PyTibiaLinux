@@ -175,7 +175,6 @@ context = {
     },
     'targeting': {
         'enabled': False,
-        'walkToTarget': False,
         'creatures': {},
         'canIgnoreCreatures': True,
         'hasIgnorableCreatures': False,

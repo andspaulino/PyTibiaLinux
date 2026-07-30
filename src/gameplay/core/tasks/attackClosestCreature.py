@@ -6,10 +6,12 @@ from .walkToTargetCreature import WalkToTargetCreatureTask
 
 
 class AttackClosestCreatureTask(VectorTask):
-    def __init__(self):
+    def __init__(self, allowChase: bool = False):
         super().__init__()
         self.name = 'attackClosestCreature'
         self.isRootTask = True
+        self.allowChase = allowChase
+        self.hasStartedAttacking = False
 
     def onBeforeStart(self, context: Context) -> Context:
         # Código original:
@@ -22,7 +24,18 @@ class AttackClosestCreatureTask(VectorTask):
             ClickInClosestCreatureTask().setParentTask(self).setRootTask(self),
         ]
         self.tasks = tasks
-        if context['targeting'].get('walkToTarget', False):
+        if self.allowChase:
             self.tasks.append(
                 WalkToTargetCreatureTask().setParentTask(self).setRootTask(self))
+        # No original, WalkToTargetCreatureTask mantém a árvore ativa durante
+        # o combate. No modo Linux selection-only, a própria root aguarda o
+        # término do ataque para não ser recriada a cada ciclo.
+        self.manuallyTerminable = not self.allowChase
         return context
+
+    def shouldManuallyComplete(self, _: Context) -> bool:
+        context = _
+        if context['cavebot']['isAttackingSomeCreature']:
+            self.hasStartedAttacking = True
+            return False
+        return self.hasStartedAttacking

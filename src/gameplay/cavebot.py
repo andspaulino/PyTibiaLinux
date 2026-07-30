@@ -8,13 +8,14 @@ def canKeepVisualTargetWithoutRadar(context: Context) -> bool:
     return (
         context['radar']['coordinate'] is None
         and context['targeting'].get('enabled', False)
-        and not context['targeting'].get('walkToTarget', False)
-        and not context['cavebot'].get('enabled', False)
     )
 
 
 # TODO: add unit tests
-def resolveCavebotTasks(context: Context) -> Union[AttackClosestCreatureTask, None]:
+def resolveCavebotTasks(
+    context: Context,
+    allowChase: bool = False,
+) -> Union[AttackClosestCreatureTask, None]:
     currentTask = context['tasksOrchestrator'].getCurrentTask(context)
     if context['cavebot']['isAttackingSomeCreature']:
         if context['cavebot']['targetCreature'] is None:
@@ -39,16 +40,23 @@ def resolveCavebotTasks(context: Context) -> Union[AttackClosestCreatureTask, No
             if context['cavebot']['closestCreature'] is None:
                 return context
             context['tasksOrchestrator'].setRootTask(
-                context, AttackClosestCreatureTask())
+                context, AttackClosestCreatureTask(allowChase=allowChase))
             return context
-        if currentTask is None or context['tasksOrchestrator'].rootTask.name != 'attackClosestCreature':
+        currentRootTask = context['tasksOrchestrator'].rootTask
+        hasMatchingAttackRoot = (
+            currentTask is not None
+            and currentRootTask is not None
+            and currentRootTask.name == 'attackClosestCreature'
+            and getattr(currentRootTask, 'allowChase', False) == allowChase
+        )
+        if not hasMatchingAttackRoot:
             context['tasksOrchestrator'].setRootTask(
-                context, AttackClosestCreatureTask())
+                context, AttackClosestCreatureTask(allowChase=allowChase))
         return context
     if context['cavebot']['closestCreature'] is None:
         return context
     context['tasksOrchestrator'].setRootTask(
-        context, AttackClosestCreatureTask())
+        context, AttackClosestCreatureTask(allowChase=allowChase))
     return context
 
 

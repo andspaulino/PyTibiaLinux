@@ -290,6 +290,14 @@ class PyTibiaThread:
             )
         )
 
+        lootBlocksMovement = isQuickLootPending or isQuickLootReady
+        allowChase = (
+            targetingEnabled
+            and cavebotEnabled
+            and context['radar']['coordinate'] is not None
+            and not context.get('pause', False)
+            and not lootBlocksMovement
+        )
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
             and hasCreaturesToAttack(context)
@@ -310,11 +318,21 @@ class PyTibiaThread:
         elif hasCreaturesToAttackAfterCheck:
             context['way'] = 'targeting'
             if shouldAskForTargetingTasks(context):
-                currentRootTask = currentTask.rootTask if currentTask is not None else None
-                isTryingToAttackClosestCreature = currentRootTask is not None and (
-                    currentRootTask.name == 'attackClosestCreature')
-                if not isTryingToAttackClosestCreature:
-                    context = resolveTargetingTasks(context)
+                currentRootTask = (
+                    currentTask.rootTask
+                    if currentTask is not None and currentTask.rootTask is not None
+                    else currentTask
+                )
+                hasMatchingAttackRoot = (
+                    currentRootTask is not None
+                    and currentRootTask.name == 'attackClosestCreature'
+                    and getattr(currentRootTask, 'allowChase', False) == allowChase
+                )
+                if not hasMatchingAttackRoot:
+                    context = resolveTargetingTasks(
+                        context,
+                        allowChase=allowChase,
+                    )
         else:
             context['way'] = 'waypoint' if cavebotEnabled else None
             currentTask = context['tasksOrchestrator'].getCurrentTask(context)

@@ -5,39 +5,38 @@
       "config": {
         "backpacks": { "main": "Brocade Backpack", "loot": "Beach Backpack" },
         "cavebot": {
-          "enabled": false,
+          "enabled": true,
           "waypoints": {
             "items": [
-                          {
-                            "label": "cavebot-test-start",
-                            "type": "walk",
-                            "coordinate": [32340, 31783, 7],
-                            "options": {}
-                          },
-                          {
-                            "label": "cavebot-test-destination",
-                            "type": "walk",
-                            "coordinate": [32333, 31782, 7],
-                            "options": {}
-                          },
-                          {
-                            "label": "cavebot-test-floor-8-start",
-                            "type": "walk",
-                            "coordinate": [32342, 31775, 8],
-                            "options": {}
-                          },
-                          {
-                            "label": "cavebot-test-floor-8-destination",
-                            "type": "walk",
-                            "coordinate": [32346, 31771, 8],
-                            "options": {}
-                          }
-                        ]
+              {
+                "label": "route-1",
+                "type": "walk",
+                "coordinate": [32562, 32480, 7],
+                "options": {}
+              },
+              {
+                "label": "route-2",
+                "type": "walk",
+                "coordinate": [32557, 32473, 7],
+                "options": {}
+              },
+              {
+                "label": "route-3",
+                "type": "walk",
+                "coordinate": [32564, 32471, 7],
+                "options": {}
+              },
+              {
+                "label": "route-4",
+                "type": "walk",
+                "coordinate": [32568, 32476, 7],
+                "options": {}
+              }
+            ]
           }
         },
         "targeting": {
-          "enabled": false,
-          "walkToTarget": false,
+          "enabled": true,
           "creatures": {}
         },
         "loot": {

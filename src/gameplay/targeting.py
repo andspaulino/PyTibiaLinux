@@ -39,7 +39,10 @@ def shouldAskForTargetingTasks(context: Context) -> bool:
     return currentTask.name not in PROTECTED_TARGETING_TASKS
 
 
-def resolveTargetingTasks(context: Context) -> Context:
+def resolveTargetingTasks(
+    context: Context,
+    allowChase: bool = False,
+) -> Context:
     # O estado de combate permanece em context['cavebot'] para preservar os
     # contratos originais enquanto a habilitação do targeting é independente.
-    return resolveCavebotTasks(context)
+    return resolveCavebotTasks(context, allowChase=allowChase)

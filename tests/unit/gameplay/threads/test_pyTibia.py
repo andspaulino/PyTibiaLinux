@@ -129,7 +129,6 @@ def make_gameplay_context(*, cavebot_enabled=False, targeting_enabled=False, mon
         },
         'targeting': {
             'enabled': targeting_enabled,
-            'walkToTarget': False,
             'creatures': {},
             'canIgnoreCreatures': True,
             'hasIgnorableCreatures': False,
@@ -184,7 +183,10 @@ def test_handle_gameplay_tasks_targets_without_cavebot(monkeypatch):
     assert result is context
     assert context['way'] == 'targeting'
     assert context['cavebot']['closestCreature'] is monster
-    resolveTargetingTasks.assert_called_once_with(context)
+    resolveTargetingTasks.assert_called_once_with(
+        context,
+        allowChase=False,
+    )
 
 
 def test_handle_gameplay_tasks_does_not_recreate_attack_root_task(monkeypatch):
@@ -193,6 +195,7 @@ def test_handle_gameplay_tasks_does_not_recreate_attack_root_task(monkeypatch):
         targeting_enabled=True, monsters=[monster])
     currentRootTask = MagicMock(name='rootTask')
     currentRootTask.name = 'attackClosestCreature'
+    currentRootTask.allowChase = False
     currentTask = MagicMock(rootTask=currentRootTask)
     context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
     resolveTargetingTasks = MagicMock(return_value=context)
@@ -208,6 +211,146 @@ def test_handle_gameplay_tasks_does_not_recreate_attack_root_task(monkeypatch):
     monkeypatch.setattr(
         'src.gameplay.threads.pyTibia.resolveTargetingTasks',
         resolveTargetingTasks)
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    resolveTargetingTasks.assert_not_called()
+
+
+def test_handle_gameplay_tasks_enables_chase_only_with_targeting_cavebot_and_radar(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        cavebot_enabled=True,
+        targeting_enabled=True,
+        monsters=[monster],
+    )
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks,
+    )
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    resolveTargetingTasks.assert_called_once_with(
+        context,
+        allowChase=True,
+    )
+
+
+def test_handle_gameplay_tasks_keeps_selection_only_without_radar(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [32001, 32000, 7]}
+    context = make_gameplay_context(
+        cavebot_enabled=True,
+        targeting_enabled=True,
+        monsters=[monster],
+    )
+    context['radar']['coordinate'] = None
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks,
+    )
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    resolveTargetingTasks.assert_called_once_with(
+        context,
+        allowChase=False,
+    )
+
+
+def test_handle_gameplay_tasks_replaces_attack_root_when_chase_mode_changes(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        cavebot_enabled=True,
+        targeting_enabled=True,
+        monsters=[monster],
+    )
+    currentRootTask = MagicMock(name='rootTask')
+    currentRootTask.name = 'attackClosestCreature'
+    currentRootTask.allowChase = False
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks,
+    )
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    resolveTargetingTasks.assert_called_once_with(
+        context,
+        allowChase=True,
+    )
+
+
+def test_handle_gameplay_tasks_keeps_matching_chase_root(monkeypatch):
+    monster = {'name': 'Rat', 'coordinate': [101, 100, 7]}
+    context = make_gameplay_context(
+        cavebot_enabled=True,
+        targeting_enabled=True,
+        monsters=[monster],
+    )
+    currentRootTask = MagicMock(name='rootTask')
+    currentRootTask.name = 'attackClosestCreature'
+    currentRootTask.allowChase = True
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestCreature',
+        MagicMock(return_value=monster),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.shouldAskForTargetingTasks',
+        MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks,
+    )
 
     PyTibiaThread(None).handleGameplayTasks(context)
 

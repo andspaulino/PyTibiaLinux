@@ -81,5 +81,5 @@ def test_resolve_targeting_preserves_original_resolver(monkeypatch):
     monkeypatch.setattr(
         'src.gameplay.targeting.resolveCavebotTasks', originalResolver)
 
-    assert resolveTargetingTasks(context) is context
-    originalResolver.assert_called_once_with(context)
+    assert resolveTargetingTasks(context, allowChase=True) is context
+    originalResolver.assert_called_once_with(context, allowChase=True)

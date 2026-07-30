@@ -14,11 +14,7 @@ VISUAL_TARGETING_FALLBACK_COORDINATE = (32000, 32000, 7)
 
 
 def canUseVisualTargetingWithoutRadar(context: Context) -> bool:
-    return (
-        context['targeting'].get('enabled', False)
-        and not context['targeting'].get('walkToTarget', False)
-        and not context['cavebot'].get('enabled', False)
-    )
+    return context['targeting'].get('enabled', False)
 
 
 
