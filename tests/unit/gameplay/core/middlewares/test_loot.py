@@ -1,94 +1,125 @@
+from unittest.mock import MagicMock
+
 from src.gameplay.core.middlewares import gameWindow as game_window_middleware
 from src.gameplay.core.middlewares import loot as loot_middleware
 
 
-def make_context(*, enabled=True, previous_target=None, previous=None, current=None):
+def make_context(*, enabled=True, selected=True, monsters=None):
+    orchestrator = MagicMock()
+    orchestrator.getCurrentTask.return_value = None
     return {
         'loot': {
             'enabled': enabled,
             'pending': False,
-            'pendingSlot': None,
+            'quickLootCooldownUntil': 0,
+            'chatMonitoringEnabled': False,
+        },
+        'chat': {
+            'tabs': {
+                'loot': {
+                    'isSelected': selected,
+                },
+            },
         },
         'cavebot': {
             'targetCreature': None,
-            'previousTargetCreature': previous_target,
+            'previousTargetCreature': None,
         },
         'gameWindow': {
-            'previousMonsters': previous or [],
-            'monsters': current or [],
+            'previousMonsters': [],
+            'monsters': monsters or [],
         },
+        'tasksOrchestrator': orchestrator,
+        'screenshot': object(),
     }
 
 
-def test_disappeared_attacked_target_in_nearby_area_marks_loot_pending():
-    target = {'slot': (8, 5), 'isBeingAttacked': True}
-    context = make_context(
-        previous_target=target,
-        previous=[target],
-        current=[],
-    )
+def test_disabled_loot_does_not_select_tab_or_read_chat(monkeypatch):
+    context = make_context(enabled=False, selected=False)
+    hasNewLoot = MagicMock()
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', hasNewLoot)
 
-    result = loot_middleware.setLootDeathMiddleware(context)
+    loot_middleware.setLootChatMiddleware(context)
+
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
+    hasNewLoot.assert_not_called()
+
+
+def test_enabled_loot_forces_loot_tab_when_unselected(monkeypatch):
+    context = make_context(selected=False)
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+
+    loot_middleware.setLootChatMiddleware(context)
+
+    rootTask = context['tasksOrchestrator'].setRootTask.call_args.args[1]
+    assert rootTask.name == 'selectChatTab'
+    assert rootTask.tabName == 'loot'
+
+
+def test_existing_select_chat_tab_root_is_not_recreated(monkeypatch):
+    context = make_context(selected=False)
+    currentRootTask = MagicMock()
+    currentRootTask.name = 'selectChatTab'
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+
+    loot_middleware.setLootChatMiddleware(context)
+
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
+
+
+def test_first_enabled_cycle_resets_baseline_once(monkeypatch):
+    context = make_context()
+    resetLootBaseline = MagicMock()
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', resetLootBaseline)
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=False))
+
+    loot_middleware.setLootChatMiddleware(context)
+    loot_middleware.setLootChatMiddleware(context)
+
+    resetLootBaseline.assert_called_once_with()
+    assert context['loot']['chatMonitoringEnabled'] is True
+
+
+def test_new_loot_line_marks_pending(monkeypatch):
+    context = make_context()
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=True))
+
+    result = loot_middleware.setLootChatMiddleware(context)
 
     assert result['loot']['pending'] is True
-    assert result['loot']['pendingSlot'] == (8, 5)
     assert result['loot']['detectedAt'] is not None
-    assert result['cavebot']['previousTargetCreature'] is None
 
 
-def test_disappeared_target_outside_nearby_area_does_not_mark_loot():
-    target = {'slot': (5, 5), 'isBeingAttacked': True}
-    context = make_context(previous_target=target, previous=[target], current=[])
+def test_new_loot_line_during_cooldown_only_updates_baseline(monkeypatch):
+    context = make_context()
+    context['loot']['quickLootCooldownUntil'] = 11
+    hasNewLoot = MagicMock(return_value=True)
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', hasNewLoot)
+    monkeypatch.setattr(loot_middleware, 'time', lambda: 10)
 
-    loot_middleware.setLootDeathMiddleware(context)
+    result = loot_middleware.setLootChatMiddleware(context)
 
-    assert context['loot']['pending'] is False
-
-
-def test_stale_previous_target_not_present_in_previous_frame_is_ignored():
-    target = {'slot': (8, 5), 'isBeingAttacked': True}
-    context = make_context(
-        previous_target=target,
-        previous=[],
-        current=[],
-    )
-
-    loot_middleware.setLootDeathMiddleware(context)
-
-    assert context['loot']['pending'] is False
+    hasNewLoot.assert_called_once_with(context['screenshot'])
+    assert result['loot']['pending'] is False
+    assert result['loot']['detectedAt'] is None
 
 
+def test_no_new_loot_line_keeps_pending_false(monkeypatch):
+    context = make_context()
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=False))
 
-def test_target_still_visible_does_not_mark_loot():
-    target = {'slot': (8, 5), 'isBeingAttacked': True}
-    context = make_context(
-        previous_target=target,
-        previous=[target],
-        current=[target],
-    )
-
-    loot_middleware.setLootDeathMiddleware(context)
+    loot_middleware.setLootChatMiddleware(context)
 
     assert context['loot']['pending'] is False
-
-
-def test_disabled_loot_does_not_mark_pending():
-    target = {'slot': (8, 5), 'isBeingAttacked': True}
-    context = make_context(
-        enabled=False,
-        previous_target=target,
-        previous=[target],
-        current=[],
-    )
-
-    loot_middleware.setLootDeathMiddleware(context)
-
-    assert context['loot']['pending'] is False
-    assert context['cavebot']['previousTargetCreature'] is target
 
 
 def test_has_adjacent_monster_uses_quick_loot_area():
-    context = make_context(current=[
+    context = make_context(monsters=[
         {'slot': (7, 5)},
         {'slot': (12, 8)},
     ])
@@ -96,9 +127,9 @@ def test_has_adjacent_monster_uses_quick_loot_area():
     assert loot_middleware.hasAdjacentMonster(context) is True
 
 
-def test_target_history_is_preserved_without_chat_or_highlighting(monkeypatch):
+def test_target_history_is_preserved_without_loot_detection(monkeypatch):
     monster = {'name': 'Bug', 'slot': (7, 5)}
-    context = make_context(current=[monster])
+    context = make_context(monsters=[monster])
     monkeypatch.setattr(
         game_window_middleware,
         'getTargetCreature',

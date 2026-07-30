@@ -7,7 +7,7 @@ from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
 from src.gameplay.core.middlewares.gameWindow import VISUAL_TARGETING_FALLBACK_COORDINATE, canUseVisualTargetingWithoutRadar, setDirectionMiddleware, setTargetCreatureHistoryMiddleware, setGameWindowCreaturesMiddleware, setGameWindowMiddleware
-from src.gameplay.core.middlewares.loot import hasAdjacentMonster, setLootDeathMiddleware
+from src.gameplay.core.middlewares.loot import hasAdjacentMonster, setLootChatMiddleware
 from src.gameplay.core.middlewares.playerStatus import setMapPlayerStatusMiddleware
 from src.gameplay.core.middlewares.radar import setRadarMiddleware, setWaypointIndexMiddleware
 from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
@@ -90,7 +90,7 @@ class PyTibiaThread:
         # Código Linux anterior:
         # context = setLootHighlightingMiddleware(context)
         # context = setHandleLootMiddleware(context)
-        context = setLootDeathMiddleware(context)
+        context = setLootChatMiddleware(context)
         context = setTargetCreatureHistoryMiddleware(context)
         context = setWaypointIndexMiddleware(context)
         context = setMapPlayerStatusMiddleware(context)
@@ -187,8 +187,8 @@ class PyTibiaThread:
 
         # Código Linux anterior:
         # `quickLootReady`, Highlighting, confirmação visual e retries decidiam
-        # quando criar esta root. O fluxo simples usa somente morte pendente e
-        # ausência de monstro adjacente.
+        # quando criar esta root. O fluxo simples usa somente uma nova linha
+        # `Loot of` e a ausência de monstro adjacente.
         if quickLootPending and not adjacentMonsterExists:
             context['way'] = 'lootPending'
             currentRootTask = (

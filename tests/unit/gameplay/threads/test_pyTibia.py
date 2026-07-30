@@ -66,7 +66,7 @@ def test_pytibia_thread_loop_execution_flow(monkeypatch):
         "setGameWindowMiddleware",
         "setDirectionMiddleware",
         "setGameWindowCreaturesMiddleware",
-        "setLootDeathMiddleware",
+        "setLootChatMiddleware",
         "setTargetCreatureHistoryMiddleware",
         "setWaypointIndexMiddleware",
         "setMapPlayerStatusMiddleware",
@@ -142,7 +142,6 @@ def make_gameplay_context(*, cavebot_enabled=False, targeting_enabled=False, mon
         'loot': {
             'enabled': False,
             'pending': False,
-            'pendingSlot': None,
             'quickLootCooldownUntil': 0,
         },
         'tasksOrchestrator': orchestrator,
@@ -403,7 +402,6 @@ def test_handle_gameplay_tasks_loots_without_cavebot_when_death_is_pending():
     context['loot'].update({
         'enabled': True,
         'pending': True,
-        'pendingSlot': (8, 5),
     })
 
     PyTibiaThread(None).handleGameplayTasks(context)
@@ -428,7 +426,6 @@ def test_handle_gameplay_tasks_keeps_adjacent_combat_without_chase(monkeypatch):
     context['loot'].update({
         'enabled': True,
         'pending': True,
-        'pendingSlot': (7, 5),
     })
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
@@ -469,7 +466,6 @@ def test_pending_loot_removes_chase_even_during_protected_single_walk(monkeypatc
     context['loot'].update({
         'enabled': True,
         'pending': True,
-        'pendingSlot': (7, 5),
     })
     currentRootTask = MagicMock()
     currentRootTask.name = 'attackClosestCreature'
@@ -513,7 +509,6 @@ def test_handle_gameplay_tasks_does_not_walk_while_adjacent_monster_blocks_loot(
     context['loot'].update({
         'enabled': True,
         'pending': True,
-        'pendingSlot': (7, 5),
     })
     resolveTasksByWaypoint = MagicMock()
     monkeypatch.setattr(
