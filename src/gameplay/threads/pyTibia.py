@@ -23,7 +23,11 @@ from src.gameplay.healing.observers.healingBySpells import healingBySpells
 from src.gameplay.healing.observers.healingByPotions import healingByPotions
 from src.gameplay.healing.observers.swapAmulet import swapAmulet
 from src.gameplay.healing.observers.swapRing import swapRing
-from src.gameplay.loot import getClosestQuickLootCoordinate, isCoordinateInQuickLootRange
+from src.gameplay.loot import (
+    getClosestQuickLootCoordinate,
+    isCoordinateInQuickLootRange,
+    removeExpiredCorpses,
+)
 from src.gameplay.lootDiagnostics import printLootDiagnostic
 from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
 from src.repositories.gameWindow.creatures import getClosestCreature
@@ -216,6 +220,10 @@ class PyTibiaThread:
         )
 
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        removeExpiredCorpses(corpsesToLoot, context)
+        if len(corpsesToLoot) == 0:
+            lootState['pending'] = False
+
         if quickLootPending and len(corpsesToLoot) > 0:
             context['way'] = 'lootCorpses'
             currentRootTask = (
@@ -248,16 +256,27 @@ class PyTibiaThread:
             selectedCorpse = corpsesToLoot[0]
             selectedCorpseCoordinate = selectedCorpse.get('coordinate')
             playerCoordinate = context.get('radar', {}).get('coordinate')
-            if (
-                selectedCorpse.get('approachFailed', False)
-                or playerCoordinate is None
-                or isCoordinateInQuickLootRange(
-                    playerCoordinate,
+
+            if playerCoordinate is None:
+                radarMissingCount = selectedCorpse.get('radarMissingCount', 0) + 1
+                selectedCorpse['radarMissingCount'] = radarMissingCount
+                shouldDiscard = (radarMissingCount >= 3)
+                nextLootTask = QuickLootNearbyCorpsesTask(
                     selectedCorpseCoordinate,
+                    discardSelectedCorpse=shouldDiscard,
                 )
+            elif isCoordinateInQuickLootRange(
+                playerCoordinate,
+                selectedCorpseCoordinate,
             ):
                 nextLootTask = QuickLootNearbyCorpsesTask(
                     selectedCorpseCoordinate,
+                    discardSelectedCorpse=False,
+                )
+            elif selectedCorpse.get('approachFailed', False):
+                nextLootTask = QuickLootNearbyCorpsesTask(
+                    selectedCorpseCoordinate,
+                    discardSelectedCorpse=True,
                 )
             else:
                 approachCoordinate = getClosestQuickLootCoordinate(
@@ -268,6 +287,7 @@ class PyTibiaThread:
                     selectedCorpse['approachFailed'] = True
                     nextLootTask = QuickLootNearbyCorpsesTask(
                         selectedCorpseCoordinate,
+                        discardSelectedCorpse=True,
                     )
                 else:
                     nextLootTask = WalkToCorpseTask(

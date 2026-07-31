@@ -8,11 +8,16 @@ from .common.base import BaseTask
 
 
 class QuickLootNearbyCorpsesTask(BaseTask):
-    def __init__(self, selectedCorpseCoordinate=None):
+    def __init__(
+        self,
+        selectedCorpseCoordinate=None,
+        discardSelectedCorpse=False,
+    ):
         super().__init__()
         self.name = 'quickLootNearbyCorpses'
         self.isRootTask = True
         self.selectedCorpseCoordinate = selectedCorpseCoordinate
+        self.discardSelectedCorpse = discardSelectedCorpse
 
     def do(self, context: Context) -> Context:
         lootState = context['loot']
@@ -39,10 +44,13 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
         playerCoordinate = context.get('radar', {}).get('coordinate')
         removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
-        if self.selectedCorpseCoordinate is not None:
-            removeCorpseByCoordinate(
+        if self.discardSelectedCorpse and self.selectedCorpseCoordinate is not None:
+            from ...loot import discardCorpseByCoordinate
+            discardCorpseByCoordinate(
                 corpsesToLoot,
                 self.selectedCorpseCoordinate,
+                context=context,
+                reason='approach-failed',
             )
         lootState['pending'] = len(corpsesToLoot) > 0
         lootState['detectedAt'] = (
@@ -57,3 +65,4 @@ class QuickLootNearbyCorpsesTask(BaseTask):
             f'(corpos pendentes: {len(corpsesToLoot)})'
         )
         return context
+

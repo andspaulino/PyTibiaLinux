@@ -1,9 +1,12 @@
 from copy import deepcopy
+from time import time
 
 from src.repositories.radar.core import isCoordinateWalkable
+from .lootDiagnostics import printLootDiagnostic
 
 
 MAX_CORPSE_APPROACH_DISTANCE = 5
+CORPSE_QUEUE_TIMEOUT = 8.0
 
 
 def normalizeCoordinate(coordinate):
@@ -13,7 +16,10 @@ def normalizeCoordinate(coordinate):
         or len(coordinate) != 3
     ):
         return None
-    return tuple(int(value) for value in coordinate)
+    try:
+        return tuple(int(value) for value in coordinate)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def isCoordinateInQuickLootRange(playerCoordinate, corpseCoordinate):
@@ -52,15 +58,25 @@ def getClosestQuickLootCoordinate(playerCoordinate, corpseCoordinate):
                     continue
             except (IndexError, TypeError, ValueError):
                 continue
-            distanceToPlayer = max(
+            chebyshevToPlayer = max(
                 abs(player[0] - candidate[0]),
                 abs(player[1] - candidate[1]),
             )
-            candidates.append((distanceToPlayer, candidate))
+            euclideanToPlayer = (
+                (player[0] - candidate[0]) ** 2 + (player[1] - candidate[1]) ** 2
+            ) ** 0.5
+            euclideanToCorpse = (
+                (corpse[0] - candidate[0]) ** 2 + (corpse[1] - candidate[1]) ** 2
+            ) ** 0.5
+            candidates.append(
+                (chebyshevToPlayer, euclideanToPlayer, euclideanToCorpse, candidate)
+            )
     if len(candidates) == 0:
         return None
-    candidates.sort(key=lambda item: (item[0], item[1][1], item[1][0]))
-    return candidates[0][1]
+    candidates.sort(
+        key=lambda item: (item[0], item[1], item[2], item[3][1], item[3][0])
+    )
+    return candidates[0][3]
 
 
 def addCorpseToQueue(corpsesToLoot, creature):
@@ -78,6 +94,7 @@ def addCorpseToQueue(corpsesToLoot, creature):
     corpse = deepcopy(creature)
     corpse['coordinate'] = list(coordinate)
     corpse['approachFailed'] = False
+    corpse['queuedAt'] = time()
     corpsesToLoot.append(corpse)
     return True
 
@@ -105,3 +122,52 @@ def removeCorpseByCoordinate(corpsesToLoot, corpseCoordinate):
             corpse.get('coordinate') if isinstance(corpse, dict) else None
         ) != selectedCoordinate
     ]
+
+
+def discardCorpseByCoordinate(
+    corpsesToLoot,
+    corpseCoordinate,
+    context=None,
+    reason='manual',
+):
+    selectedCoordinate = normalizeCoordinate(corpseCoordinate)
+    if selectedCoordinate is None:
+        return
+    remaining = []
+    discarded = False
+    for corpse in corpsesToLoot:
+        coord = normalizeCoordinate(
+            corpse.get('coordinate') if isinstance(corpse, dict) else None
+        )
+        if coord == selectedCoordinate:
+            discarded = True
+        else:
+            remaining.append(corpse)
+    corpsesToLoot[:] = remaining
+    if discarded and context is not None:
+        printLootDiagnostic(
+            'corpse_discarded',
+            context,
+            corpseCoordinate=selectedCoordinate,
+            reason=reason,
+        )
+
+
+def removeExpiredCorpses(corpsesToLoot, context=None):
+    now = time()
+    remaining = []
+    for corpse in corpsesToLoot:
+        if isinstance(corpse, dict):
+            queuedAt = corpse.get('queuedAt', now)
+            if now - queuedAt >= CORPSE_QUEUE_TIMEOUT:
+                if context is not None:
+                    printLootDiagnostic(
+                        'corpse_discarded',
+                        context,
+                        corpseCoordinate=corpse.get('coordinate'),
+                        reason='queue-timeout',
+                    )
+                continue
+        remaining.append(corpse)
+    corpsesToLoot[:] = remaining
+
