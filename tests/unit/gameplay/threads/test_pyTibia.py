@@ -752,6 +752,7 @@ def test_radar_missing_fallback_retries_before_discarding(monkeypatch):
 
 def test_corpse_queue_expiration_removes_stale_corpses(monkeypatch):
     context = make_gameplay_context(cavebot_enabled=True)
+    context['cavebot']['waypoints'] = {'currentIndex': 0, 'items': [{'type': 'walk'}]}
     context['radar']['coordinate'] = [100, 100, 7]
     context['loot'].update({
         'enabled': True,
@@ -763,11 +764,22 @@ def test_corpse_queue_expiration_removes_stale_corpses(monkeypatch):
         }],
     })
     monkeypatch.setattr('src.gameplay.threads.pyTibia.time', lambda: 110.0)
+    monkeypatch.setattr('src.gameplay.threads.pyTibia.resolveTasksByWaypoint', MagicMock())
 
-    # handleGameplayTasks should expire the corpse, clear pending
+    # handleGameplayTasks should expire the corpse, clear pending, and resume waypoint
     PyTibiaThread(None).handleGameplayTasks(context)
 
     assert len(context['loot']['corpsesToLoot']) == 0
     assert context['loot']['pending'] is False
+    assert context['way'] == 'waypoint'
+    scheduledTasks = [
+        call.args[1]
+        for call in context['tasksOrchestrator'].setRootTask.call_args_list
+        if len(call.args) > 1
+    ]
+    assert not any(
+        task is not None and getattr(task, 'name', None) == 'quickLootNearbyCorpses'
+        for task in scheduledTasks
+    )
 
 

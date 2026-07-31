@@ -1,7 +1,12 @@
 from time import time
 
 import src.utils.keyboard as utilsKeyboard
-from ...loot import removeCorpseByCoordinate, removeCorpsesInQuickLootRange
+# Código Linux anterior:
+# from ...loot import removeCorpseByCoordinate, removeCorpsesInQuickLootRange
+from ...loot import (
+    discardCorpseByCoordinate,
+    removeCorpsesInQuickLootRange,
+)
 from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from .common.base import BaseTask
@@ -45,7 +50,8 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         playerCoordinate = context.get('radar', {}).get('coordinate')
         removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
         if self.discardSelectedCorpse and self.selectedCorpseCoordinate is not None:
-            from ...loot import discardCorpseByCoordinate
+            # Código Linux anterior:
+            # from ...loot import discardCorpseByCoordinate
             discardCorpseByCoordinate(
                 corpsesToLoot,
                 self.selectedCorpseCoordinate,

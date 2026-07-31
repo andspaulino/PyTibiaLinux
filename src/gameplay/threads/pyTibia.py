@@ -206,10 +206,11 @@ class PyTibiaThread:
 
         lootState = context.get('loot', {})
         quickLootEnabled = lootState.get('enabled', False)
-        quickLootPending = (
-            quickLootEnabled
-            and lootState.get('pending', False)
-        )
+        # Código Linux anterior (recalculado após expiração para evitar estado obsoleto):
+        # quickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('pending', False)
+        # )
         adjacentMonsterExists = hasAdjacentMonster(context)
         now = time()
         isPostCombatLootDelay = (
@@ -220,9 +221,15 @@ class PyTibiaThread:
         )
 
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        hadCorpses = len(corpsesToLoot) > 0
         removeExpiredCorpses(corpsesToLoot, context)
-        if len(corpsesToLoot) == 0:
+        if hadCorpses and len(corpsesToLoot) == 0:
             lootState['pending'] = False
+
+        quickLootPending = (
+            quickLootEnabled
+            and lootState.get('pending', False)
+        )
 
         if quickLootPending and len(corpsesToLoot) > 0:
             context['way'] = 'lootCorpses'

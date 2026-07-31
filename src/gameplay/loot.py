@@ -111,17 +111,18 @@ def removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate):
     corpsesToLoot[:] = remainingCorpses
 
 
-def removeCorpseByCoordinate(corpsesToLoot, corpseCoordinate):
-    selectedCoordinate = normalizeCoordinate(corpseCoordinate)
-    if selectedCoordinate is None:
-        return
-    corpsesToLoot[:] = [
-        corpse
-        for corpse in corpsesToLoot
-        if normalizeCoordinate(
-            corpse.get('coordinate') if isinstance(corpse, dict) else None
-        ) != selectedCoordinate
-    ]
+# Código Linux anterior (desativado pois descarte é feito por discardCorpseByCoordinate):
+# def removeCorpseByCoordinate(corpsesToLoot, corpseCoordinate):
+#     selectedCoordinate = normalizeCoordinate(corpseCoordinate)
+#     if selectedCoordinate is None:
+#         return
+#     corpsesToLoot[:] = [
+#         corpse
+#         for corpse in corpsesToLoot
+#         if normalizeCoordinate(
+#             corpse.get('coordinate') if isinstance(corpse, dict) else None
+#         ) != selectedCoordinate
+#     ]
 
 
 def discardCorpseByCoordinate(
@@ -158,7 +159,9 @@ def removeExpiredCorpses(corpsesToLoot, context=None):
     remaining = []
     for corpse in corpsesToLoot:
         if isinstance(corpse, dict):
-            queuedAt = corpse.get('queuedAt', now)
+            # Código Linux anterior:
+            # queuedAt = corpse.get('queuedAt', now)
+            queuedAt = corpse.setdefault('queuedAt', now)
             if now - queuedAt >= CORPSE_QUEUE_TIMEOUT:
                 if context is not None:
                     printLootDiagnostic(
