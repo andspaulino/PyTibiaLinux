@@ -16,12 +16,19 @@ from src.gameplay.core.middlewares.tasks import setCleanUpTasksMiddleware
 # Código original:
 # from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
 from src.gameplay.core.tasks.quickLootNearbyCorpses import QuickLootNearbyCorpsesTask
+from src.gameplay.core.tasks.walkToCorpse import WalkToCorpseTask
 from src.gameplay.resolvers import resolveTasksByWaypoint
 from src.gameplay.healing.observers.eatFood import eatFood
 from src.gameplay.healing.observers.healingBySpells import healingBySpells
 from src.gameplay.healing.observers.healingByPotions import healingByPotions
 from src.gameplay.healing.observers.swapAmulet import swapAmulet
 from src.gameplay.healing.observers.swapRing import swapRing
+from src.gameplay.loot import (
+    getClosestQuickLootCoordinate,
+    isCoordinateInQuickLootRange,
+    removeExpiredCorpses,
+)
+from src.gameplay.lootDiagnostics import printLootDiagnostic
 from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
 from src.repositories.gameWindow.creatures import getClosestCreature
 
@@ -199,14 +206,117 @@ class PyTibiaThread:
 
         lootState = context.get('loot', {})
         quickLootEnabled = lootState.get('enabled', False)
+        # Código Linux anterior (recalculado após expiração para evitar estado obsoleto):
+        # quickLootPending = (
+        #     quickLootEnabled
+        #     and lootState.get('pending', False)
+        # )
+        adjacentMonsterExists = hasAdjacentMonster(context)
+        now = time()
+        isPostCombatLootDelay = (
+            now < lootState.get('movementBlockedUntil', 0)
+        )
+        isQuickLootInCooldown = (
+            now < lootState.get('quickLootCooldownUntil', 0)
+        )
+
+        corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        hadCorpses = len(corpsesToLoot) > 0
+        removeExpiredCorpses(corpsesToLoot, context)
+        if hadCorpses and len(corpsesToLoot) == 0:
+            lootState['pending'] = False
+
         quickLootPending = (
             quickLootEnabled
             and lootState.get('pending', False)
         )
-        adjacentMonsterExists = hasAdjacentMonster(context)
-        isQuickLootInCooldown = (
-            time() < lootState.get('quickLootCooldownUntil', 0)
-        )
+
+        if quickLootPending and len(corpsesToLoot) > 0:
+            context['way'] = 'lootCorpses'
+            currentRootTask = (
+                currentTask.rootTask
+                if currentTask is not None and currentTask.rootTask is not None
+                else currentTask
+            )
+            if (
+                currentRootTask is not None
+                and currentRootTask.name == 'lootCorpse'
+            ):
+                context['gameWindow']['previousMonsters'] = (
+                    context['gameWindow']['monsters']
+                )
+                return context
+            if isPostCombatLootDelay or isQuickLootInCooldown:
+                if currentRootTask is not None:
+                    printLootDiagnostic(
+                        'movement_root_cleared',
+                        context,
+                        adjacentMonster=adjacentMonsterExists,
+                        reason='tracked_corpse_wait',
+                    )
+                    context['tasksOrchestrator'].setRootTask(context, None)
+                context['gameWindow']['previousMonsters'] = (
+                    context['gameWindow']['monsters']
+                )
+                return context
+
+            selectedCorpse = corpsesToLoot[0]
+            selectedCorpseCoordinate = selectedCorpse.get('coordinate')
+            playerCoordinate = context.get('radar', {}).get('coordinate')
+
+            if playerCoordinate is None:
+                radarMissingCount = selectedCorpse.get('radarMissingCount', 0) + 1
+                selectedCorpse['radarMissingCount'] = radarMissingCount
+                shouldDiscard = (radarMissingCount >= 3)
+                nextLootTask = QuickLootNearbyCorpsesTask(
+                    selectedCorpseCoordinate,
+                    discardSelectedCorpse=shouldDiscard,
+                )
+            elif isCoordinateInQuickLootRange(
+                playerCoordinate,
+                selectedCorpseCoordinate,
+            ):
+                nextLootTask = QuickLootNearbyCorpsesTask(
+                    selectedCorpseCoordinate,
+                    discardSelectedCorpse=False,
+                )
+            elif selectedCorpse.get('approachFailed', False):
+                nextLootTask = QuickLootNearbyCorpsesTask(
+                    selectedCorpseCoordinate,
+                    discardSelectedCorpse=True,
+                )
+            else:
+                approachCoordinate = getClosestQuickLootCoordinate(
+                    playerCoordinate,
+                    selectedCorpseCoordinate,
+                )
+                if approachCoordinate is None:
+                    selectedCorpse['approachFailed'] = True
+                    nextLootTask = QuickLootNearbyCorpsesTask(
+                        selectedCorpseCoordinate,
+                        discardSelectedCorpse=True,
+                    )
+                else:
+                    nextLootTask = WalkToCorpseTask(
+                        approachCoordinate,
+                        selectedCorpse,
+                    )
+            if currentRootTask is not None:
+                context['tasksOrchestrator'].setRootTask(context, None)
+            context['tasksOrchestrator'].setRootTask(
+                context,
+                nextLootTask,
+            )
+            printLootDiagnostic(
+                'corpse_task_scheduled',
+                context,
+                corpseCoordinate=selectedCorpseCoordinate,
+                nextTask=nextLootTask.name,
+            )
+            context['gameWindow']['previousMonsters'] = (
+                context['gameWindow']['monsters']
+            )
+            return context
 
         # Código Linux anterior:
         # `quickLootReady`, Highlighting, confirmação visual e retries decidiam
@@ -219,8 +329,14 @@ class PyTibiaThread:
                 if currentTask is not None and currentTask.rootTask is not None
                 else currentTask
             )
-            if isQuickLootInCooldown:
+            if isPostCombatLootDelay or isQuickLootInCooldown:
                 if currentRootTask is not None:
+                    printLootDiagnostic(
+                        'movement_root_cleared',
+                        context,
+                        adjacentMonster=False,
+                        reason='loot_wait',
+                    )
                     context['tasksOrchestrator'].setRootTask(context, None)
                 context['gameWindow']['previousMonsters'] = (
                     context['gameWindow']['monsters']
@@ -230,6 +346,12 @@ class PyTibiaThread:
                 currentRootTask is not None
                 and currentRootTask.name != 'quickLootNearbyCorpses'
             ):
+                printLootDiagnostic(
+                    'movement_root_cleared',
+                    context,
+                    adjacentMonster=False,
+                    reason='quick_loot_priority',
+                )
                 context['tasksOrchestrator'].setRootTask(context, None)
             if context['tasksOrchestrator'].getCurrentTask(context) is None:
                 context['tasksOrchestrator'].setRootTask(
@@ -291,7 +413,13 @@ class PyTibiaThread:
         #         if not isTryingToAttackClosestCreature:
         #             context = resolveTargetingTasks(context)
 
-        lootBlocksMovement = quickLootPending
+        # Código Linux anterior:
+        # lootBlocksMovement = quickLootPending
+        lootBlocksMovement = (
+            quickLootPending
+            or isPostCombatLootDelay
+            or isQuickLootInCooldown
+        )
         allowChase = (
             targetingEnabled
             and cavebotEnabled
@@ -326,19 +454,37 @@ class PyTibiaThread:
                     and getattr(currentRootTask, 'allowChase', False) == allowChase
                 )
                 if not hasMatchingAttackRoot:
+                    if (
+                        hasAttackRootWithDifferentChaseMode
+                        and lootBlocksMovement
+                    ):
+                        printLootDiagnostic(
+                            'chase_disabled',
+                            context,
+                            adjacentMonster=adjacentMonsterExists,
+                        )
                     context = resolveTargetingTasks(
                         context,
                         allowChase=allowChase,
                     )
         else:
-            if quickLootPending:
-                context['way'] = 'lootPending'
+            if lootBlocksMovement:
+                context['way'] = (
+                    'lootPending'
+                    if quickLootPending
+                    else 'lootStabilizing'
+                )
                 currentRootTask = (
                     currentTask.rootTask
                     if currentTask is not None and currentTask.rootTask is not None
                     else currentTask
                 )
                 if currentRootTask is not None:
+                    printLootDiagnostic(
+                        'movement_root_cleared',
+                        context,
+                        adjacentMonster=adjacentMonsterExists,
+                    )
                     context['tasksOrchestrator'].setRootTask(context, None)
             else:
                 context['way'] = 'waypoint' if cavebotEnabled else None
