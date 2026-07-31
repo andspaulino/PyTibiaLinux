@@ -143,6 +143,10 @@ context = {
     'loot': {
         'enabled': False,
         'quickLootHotkey': 'alt+q',
+        # Código original:
+        # 'corpsesToLoot': [],
+        'corpsesToLoot': [],
+        'lastCombatEndedCreature': None,
         'pending': False,
         'detectedAt': None,
         'lastQuickLootAt': None,

@@ -2,6 +2,7 @@ from time import time
 
 from src.repositories.chat.core import hasNewLoot, resetLootBaseline
 
+from ...loot import addCorpseToQueue
 from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from ..tasks.selectChatTab import SelectChatTabTask
@@ -37,6 +38,8 @@ def hasAdjacentMonster(context: Context) -> bool:
 
 def setLootChatMiddleware(context: Context) -> Context:
     lootState = context.setdefault('loot', {})
+    lootState.setdefault('corpsesToLoot', [])
+    lootState.setdefault('lastCombatEndedCreature', None)
     lootState.setdefault('pending', False)
     lootState.setdefault('detectedAt', None)
     lootState.setdefault('quickLootCooldownUntil', 0)
@@ -51,6 +54,8 @@ def setLootChatMiddleware(context: Context) -> Context:
         if lootState['chatMonitoringEnabled']:
             resetLootBaseline()
         lootState['chatMonitoringEnabled'] = False
+        lootState['corpsesToLoot'].clear()
+        lootState['lastCombatEndedCreature'] = None
         lootState['movementBlockedUntil'] = 0
         lootState['wasAttacking'] = False
         return context
@@ -61,10 +66,19 @@ def setLootChatMiddleware(context: Context) -> Context:
             lootState['movementBlockedUntil'],
             now + POST_COMBAT_LOOT_DELAY,
         )
+        lootState['lastCombatEndedCreature'] = (
+            context.get('cavebot', {}).get('targetCreature')
+            or context.get('cavebot', {}).get('previousTargetCreature')
+        )
         printLootDiagnostic(
             'combat_end',
             context,
             adjacentMonster=hasAdjacentMonster(context),
+            corpseCandidateCoordinate=(
+                lootState['lastCombatEndedCreature'].get('coordinate')
+                if isinstance(lootState['lastCombatEndedCreature'], dict)
+                else None
+            ),
         )
     lootState['wasAttacking'] = isAttacking
 
@@ -98,6 +112,17 @@ def setLootChatMiddleware(context: Context) -> Context:
     if hasNewLootLine and isQuickLootInCooldown:
         return context
     if hasNewLootLine:
+        corpseCandidate = (
+            lootState.get('lastCombatEndedCreature')
+            or context.get('cavebot', {}).get('previousTargetCreature')
+        )
+        addedCorpse = addCorpseToQueue(
+            lootState['corpsesToLoot'],
+            corpseCandidate,
+        )
+        lootState['lastCombatEndedCreature'] = None
+        if addedCorpse:
+            context['cavebot']['previousTargetCreature'] = None
         lootState['pending'] = True
         lootState['detectedAt'] = now
         print('[Loot] Nova linha Loot of detectada')
@@ -105,5 +130,7 @@ def setLootChatMiddleware(context: Context) -> Context:
             'loot_detected',
             context,
             adjacentMonster=hasAdjacentMonster(context),
+            corpseQueued=addedCorpse,
+            corpseQueueSize=len(lootState['corpsesToLoot']),
         )
     return context

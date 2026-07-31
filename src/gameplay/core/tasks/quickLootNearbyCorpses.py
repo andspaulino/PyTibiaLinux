@@ -1,16 +1,18 @@
 from time import time
 
 import src.utils.keyboard as utilsKeyboard
+from ...loot import removeCorpseByCoordinate, removeCorpsesInQuickLootRange
 from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from .common.base import BaseTask
 
 
 class QuickLootNearbyCorpsesTask(BaseTask):
-    def __init__(self):
+    def __init__(self, selectedCorpseCoordinate=None):
         super().__init__()
         self.name = 'quickLootNearbyCorpses'
         self.isRootTask = True
+        self.selectedCorpseCoordinate = selectedCorpseCoordinate
 
     def do(self, context: Context) -> Context:
         lootState = context['loot']
@@ -34,9 +36,24 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         )
         utilsKeyboard.hotkey(*keys)
         now = time()
-        lootState['pending'] = False
-        lootState['detectedAt'] = None
+        corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        playerCoordinate = context.get('radar', {}).get('coordinate')
+        removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
+        if self.selectedCorpseCoordinate is not None:
+            removeCorpseByCoordinate(
+                corpsesToLoot,
+                self.selectedCorpseCoordinate,
+            )
+        lootState['pending'] = len(corpsesToLoot) > 0
+        lootState['detectedAt'] = (
+            lootState.get('detectedAt')
+            if lootState['pending']
+            else None
+        )
         lootState['lastQuickLootAt'] = now
         lootState['quickLootCooldownUntil'] = now + 0.7
-        print(f'[Loot] Quick Loot enviado por {hotkey}')
+        print(
+            f'[Loot] Quick Loot enviado por {hotkey} '
+            f'(corpos pendentes: {len(corpsesToLoot)})'
+        )
         return context
