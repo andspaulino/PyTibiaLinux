@@ -2,6 +2,7 @@ import numpy as np
 from scipy.spatial import distance
 from src.gameplay.typings import Context
 import src.gameplay.utils as gameplayUtils
+from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from ...utils import releaseKeys
 from ..waypoint import generateFloorWalkpoints
@@ -21,13 +22,22 @@ class WalkToTargetCreatureTask(VectorTask):
         return context
 
     def onBeforeRestart(self, context: Context) -> Context:
+        targetCreature = context['cavebot'].get('targetCreature') or {}
+        printLootDiagnostic(
+            'chase_restart',
+            context,
+            previousTargetCoordinate=self.targetCreatureCoordinateSinceLastRestart,
+            nextTargetCoordinate=targetCreature.get('coordinate'),
+        )
         context = releaseKeys(context)
         return self.onBeforeStart(context)
 
     def onInterrupt(self, context: Context) -> Context:
+        printLootDiagnostic('chase_interrupt', context)
         return releaseKeys(context)
 
     def onComplete(self, context: Context) -> Context:
+        printLootDiagnostic('chase_complete', context)
         return releaseKeys(context)
 
     # TODO: if there are no more creatures, it should only recalculate when it gets close to the creature to avoid recalculating each SQM move

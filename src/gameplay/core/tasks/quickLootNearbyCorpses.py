@@ -1,6 +1,7 @@
 from time import time
 
 import src.utils.keyboard as utilsKeyboard
+from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from .common.base import BaseTask
 
@@ -26,6 +27,11 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # o input iniciava confirmação por Loot Highlighting, registrava slots,
         # contava ausência e podia agendar até dois retries. A implementação
         # integral está em `docs/historico-looting/loot-highlighting-middleware.py.txt`.
+        printLootDiagnostic(
+            'quick_loot_send',
+            context,
+            hotkey=hotkey,
+        )
         utilsKeyboard.hotkey(*keys)
         now = time()
         lootState['pending'] = False

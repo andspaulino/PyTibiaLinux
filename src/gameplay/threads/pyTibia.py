@@ -22,6 +22,7 @@ from src.gameplay.healing.observers.healingBySpells import healingBySpells
 from src.gameplay.healing.observers.healingByPotions import healingByPotions
 from src.gameplay.healing.observers.swapAmulet import swapAmulet
 from src.gameplay.healing.observers.swapRing import swapRing
+from src.gameplay.lootDiagnostics import printLootDiagnostic
 from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
 from src.repositories.gameWindow.creatures import getClosestCreature
 
@@ -204,8 +205,12 @@ class PyTibiaThread:
             and lootState.get('pending', False)
         )
         adjacentMonsterExists = hasAdjacentMonster(context)
+        now = time()
+        isPostCombatLootDelay = (
+            now < lootState.get('movementBlockedUntil', 0)
+        )
         isQuickLootInCooldown = (
-            time() < lootState.get('quickLootCooldownUntil', 0)
+            now < lootState.get('quickLootCooldownUntil', 0)
         )
 
         # Código Linux anterior:
@@ -219,8 +224,14 @@ class PyTibiaThread:
                 if currentTask is not None and currentTask.rootTask is not None
                 else currentTask
             )
-            if isQuickLootInCooldown:
+            if isPostCombatLootDelay or isQuickLootInCooldown:
                 if currentRootTask is not None:
+                    printLootDiagnostic(
+                        'movement_root_cleared',
+                        context,
+                        adjacentMonster=False,
+                        reason='loot_wait',
+                    )
                     context['tasksOrchestrator'].setRootTask(context, None)
                 context['gameWindow']['previousMonsters'] = (
                     context['gameWindow']['monsters']
@@ -230,6 +241,12 @@ class PyTibiaThread:
                 currentRootTask is not None
                 and currentRootTask.name != 'quickLootNearbyCorpses'
             ):
+                printLootDiagnostic(
+                    'movement_root_cleared',
+                    context,
+                    adjacentMonster=False,
+                    reason='quick_loot_priority',
+                )
                 context['tasksOrchestrator'].setRootTask(context, None)
             if context['tasksOrchestrator'].getCurrentTask(context) is None:
                 context['tasksOrchestrator'].setRootTask(
@@ -291,7 +308,13 @@ class PyTibiaThread:
         #         if not isTryingToAttackClosestCreature:
         #             context = resolveTargetingTasks(context)
 
-        lootBlocksMovement = quickLootPending
+        # Código Linux anterior:
+        # lootBlocksMovement = quickLootPending
+        lootBlocksMovement = (
+            quickLootPending
+            or isPostCombatLootDelay
+            or isQuickLootInCooldown
+        )
         allowChase = (
             targetingEnabled
             and cavebotEnabled
@@ -326,19 +349,37 @@ class PyTibiaThread:
                     and getattr(currentRootTask, 'allowChase', False) == allowChase
                 )
                 if not hasMatchingAttackRoot:
+                    if (
+                        hasAttackRootWithDifferentChaseMode
+                        and lootBlocksMovement
+                    ):
+                        printLootDiagnostic(
+                            'chase_disabled',
+                            context,
+                            adjacentMonster=adjacentMonsterExists,
+                        )
                     context = resolveTargetingTasks(
                         context,
                         allowChase=allowChase,
                     )
         else:
-            if quickLootPending:
-                context['way'] = 'lootPending'
+            if lootBlocksMovement:
+                context['way'] = (
+                    'lootPending'
+                    if quickLootPending
+                    else 'lootStabilizing'
+                )
                 currentRootTask = (
                     currentTask.rootTask
                     if currentTask is not None and currentTask.rootTask is not None
                     else currentTask
                 )
                 if currentRootTask is not None:
+                    printLootDiagnostic(
+                        'movement_root_cleared',
+                        context,
+                        adjacentMonster=adjacentMonsterExists,
+                    )
                     context['tasksOrchestrator'].setRootTask(context, None)
             else:
                 context['way'] = 'waypoint' if cavebotEnabled else None

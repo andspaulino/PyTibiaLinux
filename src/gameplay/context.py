@@ -147,6 +147,8 @@ context = {
         'detectedAt': None,
         'lastQuickLootAt': None,
         'quickLootCooldownUntil': 0,
+        'movementBlockedUntil': 0,
+        'wasAttacking': False,
         'chatMonitoringEnabled': False,
     },
     'lastPressedKey': None,

@@ -1,3 +1,4 @@
+from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from .common.base import BaseTask
 from .common.vector import VectorTask
@@ -39,3 +40,21 @@ class AttackClosestCreatureTask(VectorTask):
             self.hasStartedAttacking = True
             return False
         return self.hasStartedAttacking
+
+    def onInterrupt(self, context: Context) -> Context:
+        printLootDiagnostic(
+            'attack_root_interrupt',
+            context,
+            rootAllowChase=self.allowChase,
+            hasStartedAttacking=self.hasStartedAttacking,
+        )
+        return context
+
+    def onComplete(self, context: Context) -> Context:
+        printLootDiagnostic(
+            'attack_root_complete',
+            context,
+            rootAllowChase=self.allowChase,
+            hasStartedAttacking=self.hasStartedAttacking,
+        )
+        return context

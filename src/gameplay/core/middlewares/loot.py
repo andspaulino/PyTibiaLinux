@@ -2,8 +2,12 @@ from time import time
 
 from src.repositories.chat.core import hasNewLoot, resetLootBaseline
 
+from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from ..tasks.selectChatTab import SelectChatTabTask
+
+
+POST_COMBAT_LOOT_DELAY = 0.85
 
 
 QUICK_LOOT_NEARBY_SLOTS = {
@@ -36,13 +40,33 @@ def setLootChatMiddleware(context: Context) -> Context:
     lootState.setdefault('pending', False)
     lootState.setdefault('detectedAt', None)
     lootState.setdefault('quickLootCooldownUntil', 0)
+    lootState.setdefault('movementBlockedUntil', 0)
+    lootState.setdefault('wasAttacking', False)
     lootState.setdefault('chatMonitoringEnabled', False)
 
+    isAttacking = bool(
+        context.get('cavebot', {}).get('isAttackingSomeCreature', False)
+    )
     if not lootState.get('enabled', False):
         if lootState['chatMonitoringEnabled']:
             resetLootBaseline()
         lootState['chatMonitoringEnabled'] = False
+        lootState['movementBlockedUntil'] = 0
+        lootState['wasAttacking'] = False
         return context
+
+    now = time()
+    if lootState['wasAttacking'] and not isAttacking:
+        lootState['movementBlockedUntil'] = max(
+            lootState['movementBlockedUntil'],
+            now + POST_COMBAT_LOOT_DELAY,
+        )
+        printLootDiagnostic(
+            'combat_end',
+            context,
+            adjacentMonster=hasAdjacentMonster(context),
+        )
+    lootState['wasAttacking'] = isAttacking
 
     if not lootState['chatMonitoringEnabled']:
         resetLootBaseline()
@@ -70,11 +94,16 @@ def setLootChatMiddleware(context: Context) -> Context:
         return context
 
     hasNewLootLine = hasNewLoot(context['screenshot'])
-    isQuickLootInCooldown = time() < lootState['quickLootCooldownUntil']
+    isQuickLootInCooldown = now < lootState['quickLootCooldownUntil']
     if hasNewLootLine and isQuickLootInCooldown:
         return context
     if hasNewLootLine:
         lootState['pending'] = True
-        lootState['detectedAt'] = time()
+        lootState['detectedAt'] = now
         print('[Loot] Nova linha Loot of detectada')
+        printLootDiagnostic(
+            'loot_detected',
+            context,
+            adjacentMonster=hasAdjacentMonster(context),
+        )
     return context

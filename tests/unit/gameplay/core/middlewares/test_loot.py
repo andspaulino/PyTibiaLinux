@@ -22,6 +22,7 @@ def make_context(*, enabled=True, selected=True, monsters=None):
             },
         },
         'cavebot': {
+            'isAttackingSomeCreature': False,
             'targetCreature': None,
             'previousTargetCreature': None,
         },
@@ -80,6 +81,44 @@ def test_first_enabled_cycle_resets_baseline_once(monkeypatch):
 
     resetLootBaseline.assert_called_once_with()
     assert context['loot']['chatMonitoringEnabled'] is True
+
+
+def test_attack_end_starts_post_combat_movement_block(monkeypatch):
+    context = make_context()
+    context['loot']['wasAttacking'] = True
+    context['cavebot']['isAttackingSomeCreature'] = False
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=False))
+    monkeypatch.setattr(loot_middleware, 'time', lambda: 10)
+
+    loot_middleware.setLootChatMiddleware(context)
+
+    assert context['loot']['wasAttacking'] is False
+    assert context['loot']['movementBlockedUntil'] == 10.85
+
+
+def test_active_combat_is_recorded_without_starting_block(monkeypatch):
+    context = make_context()
+    context['cavebot']['isAttackingSomeCreature'] = True
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=False))
+    monkeypatch.setattr(loot_middleware, 'time', lambda: 10)
+
+    loot_middleware.setLootChatMiddleware(context)
+
+    assert context['loot']['wasAttacking'] is True
+    assert context['loot']['movementBlockedUntil'] == 0
+
+
+def test_disabled_loot_clears_combat_movement_block():
+    context = make_context(enabled=False)
+    context['loot']['wasAttacking'] = True
+    context['loot']['movementBlockedUntil'] = 20
+
+    loot_middleware.setLootChatMiddleware(context)
+
+    assert context['loot']['wasAttacking'] is False
+    assert context['loot']['movementBlockedUntil'] == 0
 
 
 def test_new_loot_line_marks_pending(monkeypatch):
