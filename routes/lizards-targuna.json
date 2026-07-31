@@ -97,10 +97,22 @@
       "type": "walk",
       "coordinate": [
         31963,
-        31907,
+        31906,
         8
       ],
       "options": {}
+    },
+    {
+      "label": "moveDown001",
+      "type": "moveDown",
+      "coordinate": [
+        31963,
+        31907,
+        8
+      ],
+      "options": {
+        "direction": "south"
+      }
     },
     {
       "label": "walk011",
