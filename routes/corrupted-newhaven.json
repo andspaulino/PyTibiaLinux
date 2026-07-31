@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "name": "corrupted-newhaven",
+  "waypoints": [
+    {
+      "label": "walk001",
+      "type": "walk",
+      "coordinate": [
+        32588,
+        32461,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk002",
+      "type": "walk",
+      "coordinate": [
+        32603,
+        32461,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk003",
+      "type": "walk",
+      "coordinate": [
+        32611,
+        32454,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk004",
+      "type": "walk",
+      "coordinate": [
+        32619,
+        32450,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk005",
+      "type": "walk",
+      "coordinate": [
+        32616,
+        32443,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk006",
+      "type": "walk",
+      "coordinate": [
+        32617,
+        32436,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk007",
+      "type": "walk",
+      "coordinate": [
+        32613,
+        32426,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk008",
+      "type": "walk",
+      "coordinate": [
+        32602,
+        32426,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk009",
+      "type": "walk",
+      "coordinate": [
+        32591,
+        32423,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk010",
+      "type": "walk",
+      "coordinate": [
+        32580,
+        32427,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk011",
+      "type": "walk",
+      "coordinate": [
+        32575,
+        32435,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk012",
+      "type": "walk",
+      "coordinate": [
+        32586,
+        32441,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk013",
+      "type": "walk",
+      "coordinate": [
+        32600,
+        32440,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk014",
+      "type": "walk",
+      "coordinate": [
+        32613,
+        32443,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk015",
+      "type": "walk",
+      "coordinate": [
+        32610,
+        32450,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk016",
+      "type": "walk",
+      "coordinate": [
+        32597,
+        32451,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk017",
+      "type": "walk",
+      "coordinate": [
+        32585,
+        32454,
+        7
+      ],
+      "options": {}
+    }
+  ]
+}
