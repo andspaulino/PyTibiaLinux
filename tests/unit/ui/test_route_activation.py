@@ -45,6 +45,7 @@ def makeContext(paused=True):
     uiContext.enabledProfile = {
         'config': {
             'cavebot': {
+                'enabled': False,
                 'routeId': 'old-route',
             },
         },
@@ -54,6 +55,7 @@ def makeContext(paused=True):
         'window': None,
         'tasksOrchestrator': MagicMock(),
         'cavebot': {
+            'enabled': False,
             'waypoints': {
                 'items': [deepcopy(OLD_WAYPOINT)],
                 'currentIndex': 3,
@@ -168,7 +170,10 @@ def test_play_is_blocked_while_active_route_application_is_pending(monkeypatch):
 
 def makePage(routeId='route-a', activeRouteId='route-a'):
     context = MagicMock()
-    context.context = {'pause': True}
+    context.context = {
+        'pause': True,
+        'cavebot': {'enabled': True},
+    }
     context.getActiveRouteId.return_value = activeRouteId
     context.routeApplicationPending = False
     routeDraft = MagicMock()
@@ -183,6 +188,8 @@ def makePage(routeId='route-a', activeRouteId='route-a'):
         refreshRouteChoices=MagicMock(),
         refreshWaypointsTable=MagicMock(),
         refreshActiveRouteStatus=MagicMock(),
+        updateRouteSelectionControls=MagicMock(),
+        cavebotEnabled=MagicMock(),
         _requirePaused=MagicMock(return_value=True),
     )
     return cast(CavebotPage, page)
@@ -208,8 +215,89 @@ def test_activate_route_applies_clean_saved_draft():
     page.context.activateRoute.assert_called_once_with(
         'route-b',
         routeStore=page.routeStore,
+        enableCavebot=None,
     )
     page.refreshActiveRouteStatus.assert_called_once_with()
+
+
+def test_activate_route_can_enable_cavebot_in_profile_and_runtime(tmp_path):
+    store = makeRouteStore(tmp_path)
+    uiContext = makeContext()
+
+    uiContext.activateRoute(
+        'new-route',
+        routeStore=store,
+        enableCavebot=True,
+    )
+
+    assert uiContext.enabledProfile['config']['cavebot']['enabled'] is True
+    assert uiContext.context['cavebot']['enabled'] is True
+
+
+def test_disable_cavebot_persists_and_resets_runtime_state():
+    uiContext = makeContext()
+    uiContext.enabledProfile['config']['cavebot']['enabled'] = True
+    uiContext.context['cavebot']['enabled'] = True
+
+    uiContext.setCavebotEnabled(False)
+
+    assert uiContext.enabledProfile['config']['cavebot']['enabled'] is False
+    assert uiContext.context['cavebot']['enabled'] is False
+    assert uiContext.context['cavebot']['waypoints']['currentIndex'] is None
+    assert uiContext.context['cavebot']['waypoints']['state'] is None
+    uiContext.context['tasksOrchestrator'].setRootTask.assert_called_once_with(
+        uiContext.context,
+        None,
+    )
+    uiContext.db.update.assert_called_once_with(uiContext.enabledProfile)
+
+
+def test_route_dropdown_selection_opens_route_automatically():
+    page = makePage()
+    page.openSelectedRoute = MagicMock()
+
+    CavebotPage.onRouteSelected(page)
+
+    page.openSelectedRoute.assert_called_once_with()
+
+
+def test_toggle_cavebot_off_disables_runtime_and_unlocks_route_selection():
+    page = makePage()
+    page.cavebotEnabled.get.return_value = False
+
+    CavebotPage.toggleCavebotEnabled(page)
+
+    page.context.setCavebotEnabled.assert_called_once_with(False)
+    page.refreshActiveRouteStatus.assert_called_once_with()
+    page.updateRouteSelectionControls.assert_called_once_with()
+
+
+def test_toggle_cavebot_on_activates_selected_route():
+    page = makePage()
+    page.cavebotEnabled.get.return_value = True
+    page.activateRoute = MagicMock(return_value=True)
+
+    CavebotPage.toggleCavebotEnabled(page)
+
+    page.activateRoute.assert_called_once_with(enableCavebot=True)
+    page.cavebotEnabled.set.assert_not_called()
+    page.updateRouteSelectionControls.assert_called_once_with()
+
+
+def test_next_waypoint_label_uses_highest_existing_suffix():
+    page = makePage()
+    page.routeDraft.document = {
+        'waypoints': [
+            {'label': '', 'type': 'walk'},
+            {'label': 'walk001', 'type': 'walk'},
+            {'label': 'walk003', 'type': 'walk'},
+            {'label': 'custom', 'type': 'walk'},
+            {'label': 'useRope009', 'type': 'useRope'},
+        ],
+    }
+
+    assert CavebotPage._getNextWaypointLabel(page, 'walk') == 'walk004'
+    assert CavebotPage._getNextWaypointLabel(page, 'useRope') == 'useRope010'
 
 
 def test_save_active_route_saves_and_applies(monkeypatch):

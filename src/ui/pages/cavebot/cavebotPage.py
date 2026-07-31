@@ -53,34 +53,51 @@ class CavebotPage(tk.Frame):
             state='readonly',
         )
         self.routesCombo.grid(row=0, column=1, padx=5, sticky='ew')
+        self.routesCombo.bind(
+            '<<ComboboxSelected>>',
+            self.onRouteSelected,
+        )
         self.newRouteButton = tk.Button(
             self.routesFrame, text='New', command=self.newRoute
         )
         self.newRouteButton.grid(row=0, column=2, padx=5)
-        self.openRouteButton = tk.Button(
-            self.routesFrame, text='Open', command=self.openSelectedRoute
-        )
-        self.openRouteButton.grid(row=0, column=3, padx=5)
+        # Código Linux anterior:
+        # self.openRouteButton = tk.Button(
+        #     self.routesFrame, text='Open', command=self.openSelectedRoute
+        # )
+        # self.openRouteButton.grid(row=0, column=3, padx=5)
         self.saveRouteButton = tk.Button(
             self.routesFrame, text='Save', command=self.saveRoute
         )
-        self.saveRouteButton.grid(row=0, column=4, padx=5)
+        self.saveRouteButton.grid(row=0, column=3, padx=5)
         self.saveRouteAsButton = tk.Button(
             self.routesFrame, text='Save as', command=self.saveRouteAs
         )
-        self.saveRouteAsButton.grid(row=0, column=5, padx=5)
-        self.activateRouteButton = tk.Button(
-            self.routesFrame, text='Activate', command=self.activateRoute
+        self.saveRouteAsButton.grid(row=0, column=4, padx=5)
+        # Código Linux anterior:
+        # self.activateRouteButton = tk.Button(
+        #     self.routesFrame, text='Activate', command=self.activateRoute
+        # )
+        # self.activateRouteButton.grid(row=0, column=6, padx=5)
+        self.cavebotEnabled = tk.BooleanVar(
+            value=bool(self.context.context['cavebot'].get('enabled', False))
         )
-        self.activateRouteButton.grid(row=0, column=6, padx=5)
+        self.cavebotEnabledCheckbox = tk.Checkbutton(
+            self.routesFrame,
+            text='Cavebot enabled',
+            variable=self.cavebotEnabled,
+            command=self.toggleCavebotEnabled,
+        )
+        self.cavebotEnabledCheckbox.grid(row=0, column=5, padx=5)
         self.activeRouteStatus = tk.StringVar()
         tk.Label(
             self.routesFrame,
             textvariable=self.activeRouteStatus,
             anchor='w',
-        ).grid(row=1, column=0, columnspan=7, padx=5, pady=(8, 0), sticky='ew')
+        ).grid(row=1, column=0, columnspan=6, padx=5, pady=(8, 0), sticky='ew')
         self.refreshRouteChoices()
         self.refreshActiveRouteStatus()
+        self.updateRouteSelectionControls()
         if initialRouteError is not None:
             self.after_idle(
                 lambda error=initialRouteError: messagebox.showerror(
@@ -225,10 +242,51 @@ class CavebotPage(tk.Frame):
 
     def refreshActiveRouteStatus(self):
         routeId = self.context.getActiveRouteId()
-        status = f'Active route: {routeId or "None"}'
+        cavebotEnabled = self.context.context['cavebot'].get('enabled', False)
+        status = (
+            f'Active route: {routeId or "None"}'
+            if cavebotEnabled
+            else f'Cavebot disabled (last route: {routeId or "None"})'
+        )
         if getattr(self.context, 'routeApplicationPending', False) is True:
             status += ' (saved changes pending application)'
         self.activeRouteStatus.set(status)
+
+    def updateRouteSelectionControls(self):
+        isEnabled = bool(self.cavebotEnabled.get())
+        self.routesCombo.configure(
+            state=tk.DISABLED if isEnabled else 'readonly'
+        )
+        routeChoiceState = tk.DISABLED if isEnabled else tk.NORMAL
+        self.newRouteButton.configure(state=routeChoiceState)
+        self.saveRouteAsButton.configure(state=routeChoiceState)
+
+    def onRouteSelected(self, _event=None):
+        self.openSelectedRoute()
+
+    def toggleCavebotEnabled(self):
+        if not self._requirePaused():
+            self.cavebotEnabled.set(
+                bool(self.context.context['cavebot'].get('enabled', False))
+            )
+            self.updateRouteSelectionControls()
+            return
+        shouldEnable = bool(self.cavebotEnabled.get())
+        if shouldEnable:
+            if not self.activateRoute(enableCavebot=True):
+                self.cavebotEnabled.set(False)
+        else:
+            try:
+                self.context.setCavebotEnabled(False)
+            except (OSError, RuntimeError, ValueError) as error:
+                messagebox.showerror(
+                    'Unable to disable Cavebot',
+                    str(error),
+                    parent=self,
+                )
+                self.cavebotEnabled.set(True)
+        self.refreshActiveRouteStatus()
+        self.updateRouteSelectionControls()
 
     def refreshRouteChoices(self):
         try:
@@ -331,7 +389,8 @@ class CavebotPage(tk.Frame):
             self.saveRouteAs()
             return
         isActiveRoute = (
-            self.routeDraft.routeId == self.context.getActiveRouteId()
+            self.context.context['cavebot'].get('enabled', False)
+            and self.routeDraft.routeId == self.context.getActiveRouteId()
         )
         if isActiveRoute and not messagebox.askyesno(
             'Save and apply active route?',
@@ -406,7 +465,10 @@ class CavebotPage(tk.Frame):
             )
         ):
             return
-        isActiveRoute = routeId == self.context.getActiveRouteId()
+        isActiveRoute = (
+            self.context.context['cavebot'].get('enabled', False)
+            and routeId == self.context.getActiveRouteId()
+        )
         if isActiveRoute and not messagebox.askyesno(
             'Save and apply active route?',
             'This route is active. Save and apply its changes now?',
@@ -446,16 +508,16 @@ class CavebotPage(tk.Frame):
         self.refreshWaypointsTable()
         self.refreshActiveRouteStatus()
 
-    def activateRoute(self):
+    def activateRoute(self, enableCavebot=None):
         if not self._requirePaused():
-            return
+            return False
         if self.routeDraft.isDirty:
             messagebox.showerror(
                 'Unsaved route',
                 'Save or discard the route changes before activating it.',
                 parent=self,
             )
-            return
+            return False
         routeId = self.routeDraft.routeId
         if routeId is None:
             messagebox.showerror(
@@ -463,17 +525,32 @@ class CavebotPage(tk.Frame):
                 'Save the route before activating it.',
                 parent=self,
             )
-            return
+            return False
         try:
             self.context.activateRoute(
                 routeId,
                 routeStore=self.routeStore,
+                enableCavebot=enableCavebot,
             )
         except (OSError, RuntimeError, ValueError) as error:
             messagebox.showerror('Unable to activate route', str(error), parent=self)
             self.refreshActiveRouteStatus()
-            return
+            return False
         self.refreshActiveRouteStatus()
+        return True
+
+    def _getNextWaypointLabel(self, waypointType):
+        highestSuffix = 0
+        for waypoint in self.routeDraft.document['waypoints']:
+            if waypoint['type'] != waypointType:
+                continue
+            label = waypoint['label']
+            if not label.startswith(waypointType):
+                continue
+            suffix = label[len(waypointType):]
+            if suffix.isdigit():
+                highestSuffix = max(highestSuffix, int(suffix))
+        return f'{waypointType}{highestSuffix + 1:03d}'
 
     def openBaseModal(self):
         if self.baseModal is None or not self.baseModal.winfo_exists():
@@ -516,8 +593,12 @@ class CavebotPage(tk.Frame):
             coordinate = (coordinate[0] + 1, coordinate[1], coordinate[2])
         elif waypointDirection == 'west':
             coordinate = (coordinate[0] - 1, coordinate[1], coordinate[2])
-        waypoint = {'label': '', 'type': waypointType,
-                    'coordinate': coordinate, 'options': waypointOptions}
+        waypoint = {
+            'label': self._getNextWaypointLabel(waypointType),
+            'type': waypointType,
+            'coordinate': coordinate,
+            'options': waypointOptions,
+        }
         if waypointType == 'moveUp' or waypointType == 'moveDown':
             if waypointDirection == 'center':
                 messagebox.showerror(

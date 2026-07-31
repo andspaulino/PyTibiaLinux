@@ -180,7 +180,12 @@ class Context:
     def getActiveRouteId(self):
         return self.enabledProfile['config']['cavebot'].get('routeId')
 
-    def activateRoute(self, routeId, routeStore=None):
+    def activateRoute(
+        self,
+        routeId,
+        routeStore=None,
+        enableCavebot=None,
+    ):
         selectedRouteStore = (
             routeStore
             if routeStore is not None
@@ -197,7 +202,11 @@ class Context:
             cavebotConfig = self.enabledProfile['config']['cavebot']
             previousRouteId = cavebotConfig.get('routeId')
             hadPreviousRouteId = 'routeId' in cavebotConfig
+            previousCavebotEnabled = cavebotConfig.get('enabled')
+            hadCavebotEnabled = 'enabled' in cavebotConfig
             cavebotConfig['routeId'] = routeId
+            if enableCavebot is not None:
+                cavebotConfig['enabled'] = bool(enableCavebot)
             try:
                 self.db.update(self.enabledProfile)
             except Exception:
@@ -205,6 +214,11 @@ class Context:
                     cavebotConfig['routeId'] = previousRouteId
                 else:
                     cavebotConfig.pop('routeId', None)
+                if enableCavebot is not None:
+                    if hadCavebotEnabled:
+                        cavebotConfig['enabled'] = previousCavebotEnabled
+                    else:
+                        cavebotConfig.pop('enabled', None)
                 self.routeApplicationPending = previousPendingState
                 raise
 
@@ -215,7 +229,39 @@ class Context:
             self.context['cavebot']['waypoints']['items'] = routeWaypoints
             self.context['cavebot']['waypoints']['currentIndex'] = None
             self.context['cavebot']['waypoints']['state'] = None
+            if enableCavebot is not None:
+                self.context['cavebot']['enabled'] = bool(enableCavebot)
             self.routeApplicationPending = False
+
+    def setCavebotEnabled(self, enabled):
+        with self.gameplayLock:
+            if not self.context.get('pause', False):
+                raise RuntimeError(
+                    'Pause the bot before changing the Cavebot state.'
+                )
+
+            cavebotConfig = self.enabledProfile['config']['cavebot']
+            previousEnabled = cavebotConfig.get('enabled')
+            hadEnabled = 'enabled' in cavebotConfig
+            self.context['tasksOrchestrator'].setRootTask(
+                self.context,
+                None,
+            )
+            cavebotConfig['enabled'] = bool(enabled)
+            try:
+                self.db.update(self.enabledProfile)
+            except Exception:
+                if hadEnabled:
+                    cavebotConfig['enabled'] = previousEnabled
+                else:
+                    cavebotConfig.pop('enabled', None)
+                raise
+
+            self.context['cavebot']['enabled'] = bool(enabled)
+            self.context['cavebot']['waypoints']['currentIndex'] = None
+            self.context['cavebot']['waypoints']['state'] = None
+            if not enabled:
+                self.routeApplicationPending = False
 
     def play(self):
         if getattr(self, 'routeApplicationPending', False):
