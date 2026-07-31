@@ -120,17 +120,20 @@ class WalkToCoordinateTask(VectorTask):
         nonWalkableCoordinates = self.getNonWalkableCoordinates(context)
         self.nonWalkableCoordinatesSignature = tuple(nonWalkableCoordinates)
 
-        # Código original:
-        # self.tasks = []
-        # for walkpoint in generateFloorWalkpoints(
-        #         context['radar']['coordinate'], self.coordinate, nonWalkableCoordinates=nonWalkableCoordinates):
-        #     self.tasks.append(WalkTask(context, walkpoint).setParentTask(
-        #         self).setRootTask(self.rootTask))
+        # Código original mantido comentado:
+        # walkpoints, failureReason = calculateFloorWalkpoints(
+        #     context['radar']['coordinate'],
+        #     self.coordinate,
+        #     nonWalkableCoordinates=nonWalkableCoordinates,
+        # )
+        # self.pathfindingFailureReason = failureReason
+        currentPos = context['radar']['coordinate']
         walkpoints, failureReason = calculateFloorWalkpoints(
-            context['radar']['coordinate'],
+            currentPos,
             self.coordinate,
             nonWalkableCoordinates=nonWalkableCoordinates,
         )
+        print(f"[WalkToCoordinate] Posição Atual={currentPos} -> Alvo={self.coordinate} | Passos Encontrados={len(walkpoints)} | Falha Pathfinding='{failureReason}'")
         self.pathfindingFailureReason = failureReason
         self.tasks = [
             WalkTask(context, walkpoint).setParentTask(self).setRootTask(self.rootTask)

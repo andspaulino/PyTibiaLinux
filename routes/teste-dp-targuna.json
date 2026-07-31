@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "name": "teste-dp-targuna",
+  "waypoints": [
+    {
+      "label": "walk001",
+      "type": "walk",
+      "coordinate": [
+        31947,
+        31904,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk002",
+      "type": "walk",
+      "coordinate": [
+        31951,
+        31906,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "moveUp001",
+      "type": "moveUp",
+      "coordinate": [
+        31951,
+        31905,
+        7
+      ],
+      "options": {
+        "direction": "north"
+      }
+    },
+    {
+      "label": "walk003",
+      "type": "walk",
+      "coordinate": [
+        31948,
+        31907,
+        6
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk004",
+      "type": "walk",
+      "coordinate": [
+        31951,
+        31904,
+        6
+      ],
+      "options": {}
+    },
+    {
+      "label": "useHole001",
+      "type": "useHole",
+      "coordinate": [
+        31951,
+        31903,
+        6
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk005",
+      "type": "walk",
+      "coordinate": [
+        31945,
+        31904,
+        5
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk006",
+      "type": "walk",
+      "coordinate": [
+        31950,
+        31903,
+        5
+      ],
+      "options": {}
+    },
+    {
+      "label": "moveDown001",
+      "type": "moveDown",
+      "coordinate": [
+        31951,
+        31903,
+        5
+      ],
+      "options": {
+        "direction": "east"
+      }
+    },
+    {
+      "label": "walk007",
+      "type": "walk",
+      "coordinate": [
+        31951,
+        31904,
+        6
+      ],
+      "options": {}
+    },
+    {
+      "label": "moveDown002",
+      "type": "moveDown",
+      "coordinate": [
+        31951,
+        31905,
+        6
+      ],
+      "options": {
+        "direction": "south"
+      }
+    },
+    {
+      "label": "walk008",
+      "type": "walk",
+      "coordinate": [
+        31946,
+        31907,
+        7
+      ],
+      "options": {}
+    }
+  ]
+}

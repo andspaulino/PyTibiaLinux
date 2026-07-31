@@ -55,9 +55,21 @@ def loadContextFromConfig(
     route = routeStore.load(f'{routeId}.json')
 
     loadedContext = merge_dict(context, configToMerge)
-    loadedContext['cavebot']['waypoints']['items'] = deepcopy(
-        route['waypoints']
-    )
+    # Código original mantido comentado:
+    # loadedContext['cavebot']['waypoints']['items'] = deepcopy(
+    #     route['waypoints']
+    # )
+    # loadedContext['cavebot']['waypoints']['currentIndex'] = None
+    # loadedContext['cavebot']['waypoints']['state'] = None
+    routeWaypoints = deepcopy(route['waypoints'])
+    loadedContext['cavebot']['waypoints']['items'] = routeWaypoints
     loadedContext['cavebot']['waypoints']['currentIndex'] = None
     loadedContext['cavebot']['waypoints']['state'] = None
+    loadedContext['cavebot']['holesOrStairs'] = [
+        item['coordinate']
+        for item in routeWaypoints
+        if isinstance(item, dict)
+        and item.get('type') in ('moveUp', 'moveDown', 'useHole', 'useRope', 'useShovel', 'useTeleport')
+        and item.get('coordinate') is not None
+    ]
     return loadedContext

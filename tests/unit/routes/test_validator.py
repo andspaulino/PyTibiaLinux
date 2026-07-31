@@ -106,12 +106,28 @@ def test_non_string_unknown_fields_produce_validation_error():
 
 def test_unknown_waypoint_type_is_rejected():
     route = makeRoute()
-    route['waypoints'][0]['type'] = 'moveDown'
+    # Código original mantido comentado:
+    # route['waypoints'][0]['type'] = 'moveDown'
+    route['waypoints'][0]['type'] = 'invalidType'
 
     assertInvalid(
         route,
-        'waypoints[0].type não é suportado neste incremento: moveDown',
+        'waypoints[0].type não é suportado neste incremento: invalidType',
     )
+
+
+def test_floor_change_waypoint_types_are_accepted():
+    route = makeRoute()
+    route['waypoints'] = [
+        {'label': 'w1', 'type': 'moveUp', 'coordinate': [32781, 31234, 7], 'options': {'direction': 'north'}},
+        {'label': 'w2', 'type': 'moveDown', 'coordinate': [32781, 31234, 6], 'options': {'direction': 'south'}},
+        {'label': 'w3', 'type': 'useHole', 'coordinate': [32781, 31234, 7], 'options': {}},
+        {'label': 'w4', 'type': 'useRope', 'coordinate': [32781, 31234, 8], 'options': {}},
+        {'label': 'w5', 'type': 'useShovel', 'coordinate': [32781, 31234, 7], 'options': {}},
+        {'label': 'w6', 'type': 'useTeleport', 'coordinate': [32781, 31234, 7], 'options': {}},
+    ]
+    result = validateRouteDocument(route)
+    assert len(result['waypoints']) == 6
 
 
 def test_coordinate_must_have_three_items():

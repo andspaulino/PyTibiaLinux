@@ -21,3 +21,8 @@ class UseRopeTask(BaseTask):
         keyboard.press('o')
         gameWindowSlot.clickSlot(slot, context['gameWindow']['coordinate'])
         return context
+
+    def onComplete(self, context: Context):
+        if context.get('radar', {}).get('coordinate') is not None:
+            context['radar']['lastCoordinateVisited'] = context['radar']['coordinate']
+        return context

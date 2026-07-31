@@ -16,7 +16,16 @@ class SingleWalkTask(VectorTask):
         self.waypointType = waypointType
 
     # TODO: add unit tests
+    # Código original mantido comentado:
+    # def onBeforeStart(self, context: Context) -> Context:
+    #     moveDownOrUp = MoveDown(context, self.direction) if self.waypointType == 'moveDown' else MoveUp(context, self.direction)
+    #     self.tasks = [
+    #         moveDownOrUp.setParentTask(self).setRootTask(self),
+    #         SetNextWaypointTask().setParentTask(self).setRootTask(self),
+    #     ]
+    #     return context
     def onBeforeStart(self, context: Context) -> Context:
+        print(f"[SingleWalk] Iniciando troca de andar tipo='{self.waypointType}', direção='{self.direction}'")
         moveDownOrUp = MoveDown(context, self.direction) if self.waypointType == 'moveDown' else MoveUp(context, self.direction)
         self.tasks = [
             moveDownOrUp.setParentTask(self).setRootTask(self),

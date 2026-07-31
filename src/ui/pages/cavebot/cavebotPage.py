@@ -206,6 +206,11 @@ class CavebotPage(tk.Frame):
         self.dropFlasksButton.grid(
             row=4, column=0, padx=5, pady=5, sticky='nsew')
 
+        self.useHoleButton = tk.Button(
+            self.actionsFrame, text='Use Hole', command=lambda: self.addWaypoint('useHole'))
+        self.useHoleButton.grid(
+            row=4, column=1, padx=5, pady=5, sticky='nsew')
+
         self.refillButton = tk.Button(
             self.actionsFrame, text='Refill', command=lambda: self.openRefillModal())
         self.refillButton.grid(
@@ -216,12 +221,20 @@ class CavebotPage(tk.Frame):
         self.refillCheckerButton.grid(
             row=5, column=1, padx=5, pady=5, sticky='nsew')
 
+        # Código original:
+        # for unsupportedButton in (
+        #     self.useTeleportButton,
+        #     self.ropeButton,
+        #     self.shovelButton,
+        #     self.moveUpButton,
+        #     self.moveDownButton,
+        #     self.depositGoldButton,
+        #     self.depositItemsButton,
+        #     self.dropFlasksButton,
+        #     self.refillButton,
+        #     self.refillCheckerButton,
+        # ):
         for unsupportedButton in (
-            self.useTeleportButton,
-            self.ropeButton,
-            self.shovelButton,
-            self.moveUpButton,
-            self.moveDownButton,
             self.depositGoldButton,
             self.depositItemsButton,
             self.dropFlasksButton,

@@ -226,9 +226,23 @@ class Context:
                 self.context,
                 None,
             )
+            # Código original mantido comentado:
+            # self.context['cavebot']['waypoints']['items'] = routeWaypoints
+            # self.context['cavebot']['waypoints']['currentIndex'] = None
+            # self.context['cavebot']['waypoints']['state'] = None
+            # if enableCavebot is not None:
+            #     self.context['cavebot']['enabled'] = bool(enableCavebot)
+            # self.routeApplicationPending = False
             self.context['cavebot']['waypoints']['items'] = routeWaypoints
             self.context['cavebot']['waypoints']['currentIndex'] = None
             self.context['cavebot']['waypoints']['state'] = None
+            self.context['cavebot']['holesOrStairs'] = [
+                item['coordinate']
+                for item in routeWaypoints
+                if isinstance(item, dict)
+                and item.get('type') in ('moveUp', 'moveDown', 'useHole', 'useRope', 'useShovel', 'useTeleport')
+                and item.get('coordinate') is not None
+            ]
             if enableCavebot is not None:
                 self.context['cavebot']['enabled'] = bool(enableCavebot)
             self.routeApplicationPending = False

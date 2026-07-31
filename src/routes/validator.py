@@ -81,15 +81,22 @@ def _validateWaypoint(
     options = value.get('options')
     if not isinstance(options, dict):
         errors.append(f'{path}.options deve ser um objeto')
-    elif waypointType == 'walk' and options != {}:
-        errors.append(f'{path}.options deve ser vazio para walk')
+    # Código original mantido comentado:
+    # elif waypointType == 'walk' and options != {}:
+    #     errors.append(f'{path}.options deve ser vazio para walk')
+    elif waypointType in ('walk', 'useHole', 'useRope', 'useShovel', 'useTeleport') and options != {}:
+        errors.append(f'{path}.options deve ser vazio para {waypointType}')
+    elif waypointType in ('moveUp', 'moveDown'):
+        direction = options.get('direction') if isinstance(options, dict) else None
+        if direction not in ('north', 'south', 'east', 'west'):
+            errors.append(f'{path}.options.direction deve ser norte, sul, leste ou oeste')
 
     if len(errors) != errorsBeforeWaypoint:
         return None
 
     return Waypoint(
         label=cast(str, label),
-        type=cast(Literal['walk'], waypointType),
+        type=cast(str, waypointType),
         coordinate=cast(list[int], normalizedCoordinate),
         options=deepcopy(cast(dict[str, object], options)),
     )
