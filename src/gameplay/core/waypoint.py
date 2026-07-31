@@ -84,7 +84,10 @@ def calculateFloorWalkpoints(
             copiedWalkableFloorSqms[localY, localX] = 0
 
     copiedWalkableFloorSqms[54, 53] = 1
-    if coordinate == goalCoordinate:
+    # Código original mantido comentado:
+    # if coordinate == goalCoordinate:
+    #     return [], None
+    if tuple(coordinate) == tuple(goalCoordinate):
         return [], None
     if copiedWalkableFloorSqms[localGoalY, localGoalX] == 0:
         return [], 'goal-not-walkable'

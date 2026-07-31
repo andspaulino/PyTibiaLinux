@@ -57,7 +57,7 @@ def test_should_do(mocker):
     assert task.do(context) == context
     getSlotFromCoordinateSpy.assert_called_once_with(
         context['radar']['coordinate'], waypoint['coordinate'])
-    pressSpy.assert_called_once_with('p')
+    pressSpy.assert_called_once_with('=')
     clickSlotSpy.assert_called_once_with(
         slot, context['gameWindow']['coordinate'])
 

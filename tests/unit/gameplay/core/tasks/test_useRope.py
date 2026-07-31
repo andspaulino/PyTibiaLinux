@@ -27,4 +27,4 @@ def test_should_do(mocker):
         context['radar']['coordinate'], waypoint['coordinate'])
     clickSlotSpy.assert_called_once_with(
         slot, context['gameWindow']['coordinate'])
-    pressSpy.assert_called_once_with('o')
+    pressSpy.assert_called_once_with('-')

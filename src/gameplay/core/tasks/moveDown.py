@@ -9,6 +9,7 @@ class MoveDown(BaseTask):
         self.name = 'moveDown'
         self.isRootTask = True
         self.direction = direction
+        self.delayOfTimeout = 2.0
         self.floorLevel = context['radar']['coordinate'][2] + 1
 
     # TODO: add unit tests
@@ -48,10 +49,8 @@ class MoveDown(BaseTask):
     def did(self, context: Context) -> bool:
         coord = context.get('radar', {}).get('coordinate')
         if coord is None:
-            print("[MoveDown] did() -> Radar retornou coordenada None!")
             return False
         hasMoved = coord[2] == self.floorLevel
-        print(f"[MoveDown] did() -> Coordenada atual Z={coord[2]}, Esperado Z={self.floorLevel}, Sucesso={hasMoved}")
         if hasMoved:
             context['radar']['lastCoordinateVisited'] = coord
         return hasMoved

@@ -21,7 +21,9 @@ class UseShovelTask(BaseTask):
     def do(self, context: Context) -> Context:
         slot = gameWindowCore.getSlotFromCoordinate(
             context['radar']['coordinate'], self.waypoint['coordinate'])
-        keyboard.press('p')
+        # Código original mantido comentado:
+        # keyboard.press('p')
+        keyboard.press('=')
         gameWindowSlot.clickSlot(slot, context['gameWindow']['coordinate'])
         return context
 

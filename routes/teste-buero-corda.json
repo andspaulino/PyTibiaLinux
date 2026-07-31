@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "name": "teste-buero-corda",
+  "waypoints": [
+    {
+      "label": "walk001",
+      "type": "walk",
+      "coordinate": [
+        32378,
+        31785,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk002",
+      "type": "walk",
+      "coordinate": [
+        32380,
+        31785,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "useHole001",
+      "type": "useHole",
+      "coordinate": [
+        32380,
+        31784,
+        7
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk003",
+      "type": "walk",
+      "coordinate": [
+        32384,
+        31785,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk004",
+      "type": "walk",
+      "coordinate": [
+        32380,
+        31785,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "useRope001",
+      "type": "useRope",
+      "coordinate": [
+        32380,
+        31784,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk005",
+      "type": "walk",
+      "coordinate": [
+        32380,
+        31787,
+        7
+      ],
+      "options": {}
+    }
+  ]
+}
