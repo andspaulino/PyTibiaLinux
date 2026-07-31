@@ -1290,4 +1290,9 @@ creatures = {
     'Corrupted Skeleton': {'exp': 34, 'hp': 45, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
     'The Corruptor': {'exp': 170, 'hp': 100, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
     'Muglex Clan Chief': {'exp': 175, 'hp': 100, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Henchman': {'exp': 70, 'hp': 58, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Magician': {'exp': 75, 'hp': 62, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Swordmaster': {'exp': 80, 'hp': 68, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Executioner': {'exp': 90, 'hp': 74, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
+    'Lizard Commander': {'exp': 240, 'hp': 160, 'gameWindowMisalignment': {'x': 0, 'y': 0}},
 }
