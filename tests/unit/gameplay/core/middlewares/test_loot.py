@@ -179,3 +179,19 @@ def test_target_history_is_preserved_without_loot_detection(monkeypatch):
 
     assert result['cavebot']['targetCreature'] == monster
     assert result['cavebot']['previousTargetCreature'] == monster
+
+
+def test_combat_end_skipped_when_target_still_alive(monkeypatch):
+    monster = {'name': 'Lizard Magician', 'coordinate': (31917, 31875, 8)}
+    context = make_context(monsters=[monster])
+    context['loot']['wasAttacking'] = True
+    context['cavebot']['isAttackingSomeCreature'] = False
+    context['cavebot']['previousTargetCreature'] = monster
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+
+    result = loot_middleware.setLootChatMiddleware(context)
+
+    # Because monster is still alive in gameWindow, combat_end is skipped and movementBlockedUntil stays 0
+    assert result['loot']['movementBlockedUntil'] == 0
+    assert result['loot']['wasAttacking'] is True
+

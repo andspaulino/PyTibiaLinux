@@ -42,3 +42,22 @@ def test_onBeforeStart_with_walking_to_target():
     assert task.tasks[1].rootTask == task
     assert task.allowChase is True
     assert task.manuallyTerminable is False
+
+
+def test_walkToTargetCreature_shouldRestart_tolerance():
+    task = WalkToTargetCreatureTask()
+    # When tasks list is empty -> should restart
+    assert task.shouldRestart({'cavebot': {'targetCreature': {'coordinate': [10, 10, 7]}}}) is True
+
+    # Simulate active tasks in progress
+    task.tasks = ['mock_walk_task']
+    task.targetCreatureCoordinateSinceLastRestart = [10, 10, 7]
+
+    # Target shift of 1 SQM -> should NOT restart (tolerates micro-movements)
+    ctx_1sqm = {'cavebot': {'targetCreature': {'coordinate': [10, 11, 7]}}}
+    assert task.shouldRestart(ctx_1sqm) is False
+
+    # Target shift of > 2 SQM -> SHOULD restart
+    ctx_3sqm = {'cavebot': {'targetCreature': {'coordinate': [10, 14, 7]}}}
+    assert task.shouldRestart(ctx_3sqm) is True
+

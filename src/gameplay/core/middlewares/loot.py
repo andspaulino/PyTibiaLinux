@@ -1,3 +1,4 @@
+import numpy as np
 from time import time
 
 from src.repositories.chat.core import hasNewLoot, resetLootBaseline
@@ -16,6 +17,38 @@ QUICK_LOOT_NEARBY_SLOTS = {
     for row in range(4, 7)
     for column in range(6, 9)
 }
+
+
+def isTargetCreatureStillAlive(context: Context) -> bool:
+    target = (
+        context.get('cavebot', {}).get('targetCreature')
+        or context.get('cavebot', {}).get('previousTargetCreature')
+    )
+    if not target or not isinstance(target, dict):
+        return False
+    targetCoord = target.get('coordinate')
+    targetName = target.get('name')
+    if targetName == 'Unknown':
+        targetName = None
+
+    monsters = context.get('gameWindow', {}).get('monsters', [])
+    for monster in monsters:
+        mCoord = monster.get('coordinate')
+        mName = monster.get('name')
+        if targetCoord is not None and mCoord is not None and len(mCoord) == 3 and len(targetCoord) == 3:
+            if mCoord[0] == targetCoord[0] and mCoord[1] == targetCoord[1] and mCoord[2] == targetCoord[2]:
+                return True
+        if targetName and mName == targetName and mCoord is not None and targetCoord is not None:
+            if abs(int(mCoord[0]) - int(targetCoord[0])) <= 2 and abs(int(mCoord[1]) - int(targetCoord[1])) <= 2:
+                return True
+
+    creatures = context.get('battleList', {}).get('creatures', [])
+    if isinstance(creatures, (list, np.ndarray)):
+        for creature in creatures:
+            cName = creature['name'] if isinstance(creature, dict) or hasattr(creature, '__getitem__') else None
+            if targetName and cName == targetName:
+                return True
+    return False
 
 
 # Código Linux anterior:
@@ -61,7 +94,26 @@ def setLootChatMiddleware(context: Context) -> Context:
         return context
 
     now = time()
+
+    # Código original Windows / Linux anterior:
+    # if lootState['wasAttacking'] and not isAttacking:
+    #     lootState['movementBlockedUntil'] = max(
+    #         lootState['movementBlockedUntil'],
+    #         now + POST_COMBAT_LOOT_DELAY,
+    #     )
+    #     lootState['lastCombatEndedCreature'] = (
+    #         context.get('cavebot', {}).get('targetCreature')
+    #         or context.get('cavebot', {}).get('previousTargetCreature')
+    #     )
+    #     printLootDiagnostic(...)
+
+    # Adaptação Linux: Se a criatura-alvo continua viva/presente no jogo, ignora o flicker
+    # de 1 frame do indicador de ataque para não pausar o movimento por 850ms nem resetar o ataque.
     if lootState['wasAttacking'] and not isAttacking:
+        if isTargetCreatureStillAlive(context):
+            lootState['wasAttacking'] = True
+            return context
+
         lootState['movementBlockedUntil'] = max(
             lootState['movementBlockedUntil'],
             now + POST_COMBAT_LOOT_DELAY,

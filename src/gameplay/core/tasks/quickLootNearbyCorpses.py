@@ -5,6 +5,7 @@ import src.utils.keyboard as utilsKeyboard
 # from ...loot import removeCorpseByCoordinate, removeCorpsesInQuickLootRange
 from ...loot import (
     discardCorpseByCoordinate,
+    normalizeCoordinate,
     removeCorpsesInQuickLootRange,
 )
 from ...lootDiagnostics import printLootDiagnostic
@@ -39,6 +40,14 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # o input iniciava confirmação por Loot Highlighting, registrava slots,
         # contava ausência e podia agendar até dois retries. A implementação
         # integral está em `docs/historico-looting/loot-highlighting-middleware.py.txt`.
+
+        # Código original (envio único sem confirmação):
+        # utilsKeyboard.hotkey(*keys)
+        # now = time()
+        # corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        # playerCoordinate = context.get('radar', {}).get('coordinate')
+        # removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
+
         printLootDiagnostic(
             'quick_loot_send',
             context,
@@ -48,6 +57,25 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         now = time()
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
         playerCoordinate = context.get('radar', {}).get('coordinate')
+
+        # Adaptação Linux: Realiza 2 tentativas do hotkey Quick Loot (0ms e 150ms)
+        # com o personagem estabilizado no piso adjacente antes de remover o corpo da fila.
+        if self.selectedCorpseCoordinate is not None:
+            normSelected = normalizeCoordinate(self.selectedCorpseCoordinate)
+            for corpse in corpsesToLoot:
+                if isinstance(corpse, dict) and normalizeCoordinate(corpse.get('coordinate')) == normSelected:
+                    attempts = corpse.get('lootAttempts', 0) + 1
+                    corpse['lootAttempts'] = attempts
+                    if attempts < 2:
+                        lootState['lastQuickLootAt'] = now
+                        lootState['quickLootCooldownUntil'] = now + 0.15
+                        print(
+                            f'[Loot] Quick Loot enviado por {hotkey} '
+                            f'(tentativa {attempts}/2, corpos pendentes: {len(corpsesToLoot)})'
+                        )
+                        return context
+                    break
+
         removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
         if self.discardSelectedCorpse and self.selectedCorpseCoordinate is not None:
             # Código Linux anterior:
