@@ -1,4 +1,3 @@
-import numpy as np
 from time import time
 
 from src.repositories.chat.core import hasNewLoot, resetLootBaseline
@@ -33,21 +32,25 @@ def isTargetCreatureStillAlive(context: Context) -> bool:
 
     monsters = context.get('gameWindow', {}).get('monsters', [])
     for monster in monsters:
+        if not isinstance(monster, dict):
+            continue
         mCoord = monster.get('coordinate')
-        mName = monster.get('name')
-        if targetCoord is not None and mCoord is not None and len(mCoord) == 3 and len(targetCoord) == 3:
-            if mCoord[0] == targetCoord[0] and mCoord[1] == targetCoord[1] and mCoord[2] == targetCoord[2]:
-                return True
-        if targetName and mName == targetName and mCoord is not None and targetCoord is not None:
-            if abs(int(mCoord[0]) - int(targetCoord[0])) <= 2 and abs(int(mCoord[1]) - int(targetCoord[1])) <= 2:
-                return True
+        if (
+            targetCoord is not None
+            and mCoord is not None
+            and len(mCoord) == 3
+            and len(targetCoord) == 3
+            and mCoord[0] == targetCoord[0]
+            and mCoord[1] == targetCoord[1]
+            and mCoord[2] == targetCoord[2]
+        ):
+            return True
 
-    creatures = context.get('battleList', {}).get('creatures', [])
-    if isinstance(creatures, (list, np.ndarray)):
-        for creature in creatures:
-            cName = creature['name'] if isinstance(creature, dict) or hasattr(creature, '__getitem__') else None
-            if targetName and cName == targetName:
-                return True
+    # Código Linux anterior:
+    # qualquer criatura homônima na Battle List, ou a até dois SQMs da última
+    # coordenada, era aceita como o mesmo alvo e podia ocultar uma morte real.
+    # Sem um identificador estável por criatura, somente a coordenada mundial
+    # exata é evidência segura de que o alvo específico continua presente.
     return False
 
 
@@ -111,27 +114,31 @@ def setLootChatMiddleware(context: Context) -> Context:
     # de 1 frame do indicador de ataque para não pausar o movimento por 850ms nem resetar o ataque.
     if lootState['wasAttacking'] and not isAttacking:
         if isTargetCreatureStillAlive(context):
-            lootState['wasAttacking'] = True
-            return context
-
-        lootState['movementBlockedUntil'] = max(
-            lootState['movementBlockedUntil'],
-            now + POST_COMBAT_LOOT_DELAY,
-        )
-        lootState['lastCombatEndedCreature'] = (
-            context.get('cavebot', {}).get('targetCreature')
-            or context.get('cavebot', {}).get('previousTargetCreature')
-        )
-        printLootDiagnostic(
-            'combat_end',
-            context,
-            adjacentMonster=hasAdjacentMonster(context),
-            corpseCandidateCoordinate=(
-                lootState['lastCombatEndedCreature'].get('coordinate')
-                if isinstance(lootState['lastCombatEndedCreature'], dict)
-                else None
-            ),
-        )
+            # Código Linux anterior:
+            # lootState['wasAttacking'] = True
+            # return context
+            # Continua até a leitura do chat: uma linha Loot of é autoridade
+            # suficiente para confirmar uma morte mesmo durante um flicker.
+            isAttacking = True
+        else:
+            lootState['movementBlockedUntil'] = max(
+                lootState['movementBlockedUntil'],
+                now + POST_COMBAT_LOOT_DELAY,
+            )
+            lootState['lastCombatEndedCreature'] = (
+                context.get('cavebot', {}).get('targetCreature')
+                or context.get('cavebot', {}).get('previousTargetCreature')
+            )
+            printLootDiagnostic(
+                'combat_end',
+                context,
+                adjacentMonster=hasAdjacentMonster(context),
+                corpseCandidateCoordinate=(
+                    lootState['lastCombatEndedCreature'].get('coordinate')
+                    if isinstance(lootState['lastCombatEndedCreature'], dict)
+                    else None
+                ),
+            )
     lootState['wasAttacking'] = isAttacking
 
     if not lootState['chatMonitoringEnabled']:

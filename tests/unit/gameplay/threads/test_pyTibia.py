@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock
 
-from src.gameplay.threads.pyTibia import PyTibiaThread
+from src.gameplay.core.tasks.common.base import BaseTask
+from src.gameplay.core.tasks.orchestrator import TasksOrchestrator
+from src.gameplay.threads.pyTibia import PyTibiaThread, _getCurrentRootTask
 
 class DummyContext:
     def __init__(self, context_dict):
@@ -148,6 +150,16 @@ def make_gameplay_context(*, cavebot_enabled=False, targeting_enabled=False, mon
         'tasksOrchestrator': orchestrator,
         'way': None,
     }
+
+
+def test_current_root_prefers_real_orchestrator_root():
+    orchestrator = TasksOrchestrator()
+    rootTask = BaseTask(name='lootCorpse', isRootTask=True)
+    childTask = BaseTask(name='walk')
+    orchestrator.rootTask = rootTask
+    context = {'tasksOrchestrator': orchestrator}
+
+    assert _getCurrentRootTask(context, childTask) is rootTask
 
 
 def test_handle_gameplay_tasks_does_nothing_when_targeting_and_cavebot_are_disabled(monkeypatch):
@@ -642,6 +654,11 @@ def test_decisive_corpse_approach_and_quick_loot_flow(monkeypatch):
     5. QuickLootNearbyCorpsesTask removes corpse, clears pending.
     6. Next cycle resumes targeting/cavebot.
     """
+    clock = [10.0]
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.time',
+        lambda: clock[0],
+    )
     monkeypatch.setattr(
         'src.gameplay.threads.pyTibia.getClosestQuickLootCoordinate',
         lambda p, c: (101, 100, 7),
@@ -670,15 +687,23 @@ def test_decisive_corpse_approach_and_quick_loot_flow(monkeypatch):
     context['radar']['coordinate'] = [101, 100, 7]
     context['tasksOrchestrator'].getCurrentTask.return_value = None
 
-    # Cycle 2: In 3x3 range -> schedules QuickLootNearbyCorpsesTask
+    # Cycle 2: In 3x3 range -> starts the 150ms stabilization window.
     PyTibiaThread(None).handleGameplayTasks(context)
     assert context['way'] == 'lootCorpses'
+    assert context['loot']['corpsesToLoot'][0]['quickLootReadyAt'] == 10.15
+
+    # Cycle 3: after stabilization -> schedules QuickLootNearbyCorpsesTask.
+    clock[0] = 10.15
+    PyTibiaThread(None).handleGameplayTasks(context)
     task2 = context['tasksOrchestrator'].setRootTask.call_args.args[1]
     assert task2.name == 'quickLootNearbyCorpses'
     assert task2.discardSelectedCorpse is False
 
-    # Execute QuickLootNearbyCorpsesTask.do at time t=10.0
-    monkeypatch.setattr('src.gameplay.core.tasks.quickLootNearbyCorpses.time', lambda: 10.0)
+    # Execute one Quick Loot pulse after stabilization.
+    monkeypatch.setattr(
+        'src.gameplay.core.tasks.quickLootNearbyCorpses.time',
+        lambda: 10.15,
+    )
     monkeypatch.setattr('src.utils.keyboard.hotkey', MagicMock())
     task2.do(context)
 
@@ -686,12 +711,56 @@ def test_decisive_corpse_approach_and_quick_loot_flow(monkeypatch):
     assert len(context['loot']['corpsesToLoot']) == 0
     assert context['loot']['pending'] is False
 
-    # Cycle 3: After quick loot cooldown (0.7s), queue empty -> resumes Cavebot / Waypoint
-    monkeypatch.setattr('src.gameplay.threads.pyTibia.time', lambda: 10.8)
+    # Cycle 4: After quick loot cooldown, queue empty -> resumes Cavebot.
+    clock[0] = 10.86
     context['cavebot']['waypoints'] = {'currentIndex': 0, 'items': [{'type': 'walk'}]}
     monkeypatch.setattr('src.gameplay.threads.pyTibia.resolveTasksByWaypoint', MagicMock())
     PyTibiaThread(None).handleGameplayTasks(context)
     assert context['way'] == 'waypoint'
+
+
+def test_single_quick_loot_pulse_uses_real_orchestrator_lifecycle(monkeypatch):
+    clock = [10.0]
+    hotkey = MagicMock()
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.time',
+        lambda: clock[0],
+    )
+    monkeypatch.setattr(
+        'src.gameplay.core.tasks.quickLootNearbyCorpses.time',
+        lambda: clock[0],
+    )
+    monkeypatch.setattr('src.utils.keyboard.hotkey', hotkey)
+
+    context = make_gameplay_context(cavebot_enabled=True)
+    context['tasksOrchestrator'] = TasksOrchestrator()
+    context['radar']['coordinate'] = [101, 100, 7]
+    context['loot'].update({
+        'enabled': True,
+        'pending': True,
+        'corpsesToLoot': [{
+            'name': 'Dragon',
+            'coordinate': [100, 100, 7],
+        }],
+    })
+    thread = PyTibiaThread(None)
+
+    thread.handleGameplayTasks(context)
+    assert context['tasksOrchestrator'].rootTask is None
+    assert hotkey.call_count == 0
+
+    clock[0] = 10.14
+    thread.handleGameplayTasks(context)
+    assert context['tasksOrchestrator'].rootTask is None
+    assert hotkey.call_count == 0
+
+    clock[0] = 10.15
+    thread.handleGameplayTasks(context)
+    context['tasksOrchestrator'].do(context)
+
+    assert hotkey.call_count == 1
+    assert context['loot']['corpsesToLoot'] == []
+    assert context['loot']['pending'] is False
 
 
 def test_failed_corpse_approach_fallback_discards_corpse(monkeypatch):
@@ -713,13 +782,15 @@ def test_failed_corpse_approach_fallback_discards_corpse(monkeypatch):
     assert task.name == 'quickLootNearbyCorpses'
     assert task.discardSelectedCorpse is True
 
-    # Execute task.do
-    monkeypatch.setattr('src.utils.keyboard.hotkey', MagicMock())
+    # Execute task.do. Failed approach discards without sending input.
+    hotkey = MagicMock()
+    monkeypatch.setattr('src.utils.keyboard.hotkey', hotkey)
     task.do(context)
 
     # Corpse must be discarded
     assert len(context['loot']['corpsesToLoot']) == 0
     assert context['loot']['pending'] is False
+    hotkey.assert_not_called()
 
 
 def test_radar_missing_fallback_retries_before_discarding(monkeypatch):
@@ -732,22 +803,49 @@ def test_radar_missing_fallback_retries_before_discarding(monkeypatch):
         'corpsesToLoot': [corpse],
     })
 
-    # Ticks 1 & 2: missing radar count increases, discard is False
+    # Ticks 1 & 2: wait without scheduling input.
     PyTibiaThread(None).handleGameplayTasks(context)
-    task1 = context['tasksOrchestrator'].setRootTask.call_args.args[1]
-    assert task1.discardSelectedCorpse is False
     assert corpse['radarMissingCount'] == 1
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
 
     PyTibiaThread(None).handleGameplayTasks(context)
-    task2 = context['tasksOrchestrator'].setRootTask.call_args.args[1]
-    assert task2.discardSelectedCorpse is False
     assert corpse['radarMissingCount'] == 2
+    context['tasksOrchestrator'].setRootTask.assert_not_called()
 
     # Tick 3: radar missing >= 3 -> discard is True
     PyTibiaThread(None).handleGameplayTasks(context)
     task3 = context['tasksOrchestrator'].setRootTask.call_args.args[1]
     assert task3.discardSelectedCorpse is True
     assert corpse['radarMissingCount'] == 3
+
+
+def test_missing_radar_discards_without_hotkey(monkeypatch):
+    hotkey = MagicMock()
+    monkeypatch.setattr('src.utils.keyboard.hotkey', hotkey)
+
+    context = make_gameplay_context(cavebot_enabled=True)
+    context['tasksOrchestrator'] = TasksOrchestrator()
+    context['radar']['coordinate'] = None
+    context['loot'].update({
+        'enabled': True,
+        'pending': True,
+        'corpsesToLoot': [{
+            'name': 'Wolf',
+            'coordinate': [100, 100, 7],
+        }],
+    })
+    thread = PyTibiaThread(None)
+
+    thread.handleGameplayTasks(context)
+    thread.handleGameplayTasks(context)
+    assert context['tasksOrchestrator'].rootTask is None
+
+    thread.handleGameplayTasks(context)
+    context['tasksOrchestrator'].do(context)
+
+    assert hotkey.call_count == 0
+    assert context['loot']['corpsesToLoot'] == []
+    assert context['loot']['pending'] is False
 
 
 def test_corpse_queue_expiration_removes_stale_corpses(monkeypatch):
@@ -760,7 +858,7 @@ def test_corpse_queue_expiration_removes_stale_corpses(monkeypatch):
         'corpsesToLoot': [{
             'name': 'Rat',
             'coordinate': [105, 100, 7],
-            'queuedAt': 100.0,
+            'processingStartedAt': 100.0,
         }],
     })
     monkeypatch.setattr('src.gameplay.threads.pyTibia.time', lambda: 110.0)

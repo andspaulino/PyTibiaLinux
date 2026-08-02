@@ -188,10 +188,48 @@ def test_combat_end_skipped_when_target_still_alive(monkeypatch):
     context['cavebot']['isAttackingSomeCreature'] = False
     context['cavebot']['previousTargetCreature'] = monster
     monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(
+        loot_middleware,
+        'hasNewLoot',
+        MagicMock(return_value=False),
+    )
 
     result = loot_middleware.setLootChatMiddleware(context)
 
     # Because monster is still alive in gameWindow, combat_end is skipped and movementBlockedUntil stays 0
     assert result['loot']['movementBlockedUntil'] == 0
     assert result['loot']['wasAttacking'] is True
+    loot_middleware.hasNewLoot.assert_called_once_with(context['screenshot'])
+
+
+def test_homonymous_monster_does_not_hide_combat_end(monkeypatch):
+    deadTarget = {
+        'name': 'Muglex Clan Footman',
+        'coordinate': (100, 100, 7),
+    }
+    otherMonsters = [
+        {'name': 'Muglex Clan Footman', 'coordinate': (101, 100, 7)},
+    ]
+    context = make_context(monsters=otherMonsters)
+    context['battleList'] = {
+        'creatures': [
+            {'name': 'Muglex Clan Footman'},
+        ],
+    }
+    context['loot']['wasAttacking'] = True
+    context['cavebot']['isAttackingSomeCreature'] = False
+    context['cavebot']['previousTargetCreature'] = deadTarget
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(
+        loot_middleware,
+        'hasNewLoot',
+        MagicMock(return_value=True),
+    )
+
+    result = loot_middleware.setLootChatMiddleware(context)
+
+    assert result['loot']['movementBlockedUntil'] > 0
+    assert result['loot']['wasAttacking'] is False
+    assert result['loot']['pending'] is True
+    assert result['loot']['corpsesToLoot'][0]['coordinate'] == [100, 100, 7]
 

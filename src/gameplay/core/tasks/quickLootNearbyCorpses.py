@@ -5,7 +5,6 @@ import src.utils.keyboard as utilsKeyboard
 # from ...loot import removeCorpseByCoordinate, removeCorpsesInQuickLootRange
 from ...loot import (
     discardCorpseByCoordinate,
-    normalizeCoordinate,
     removeCorpsesInQuickLootRange,
 )
 from ...lootDiagnostics import printLootDiagnostic
@@ -48,44 +47,55 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # playerCoordinate = context.get('radar', {}).get('coordinate')
         # removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
 
-        printLootDiagnostic(
-            'quick_loot_send',
-            context,
-            hotkey=hotkey,
-        )
-        utilsKeyboard.hotkey(*keys)
         now = time()
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
         playerCoordinate = context.get('radar', {}).get('coordinate')
 
-        # Adaptação Linux: Realiza 2 tentativas do hotkey Quick Loot (0ms e 150ms)
-        # com o personagem estabilizado no piso adjacente antes de remover o corpo da fila.
-        if self.selectedCorpseCoordinate is not None:
-            normSelected = normalizeCoordinate(self.selectedCorpseCoordinate)
-            for corpse in corpsesToLoot:
-                if isinstance(corpse, dict) and normalizeCoordinate(corpse.get('coordinate')) == normSelected:
-                    attempts = corpse.get('lootAttempts', 0) + 1
-                    corpse['lootAttempts'] = attempts
-                    if attempts < 2:
-                        lootState['lastQuickLootAt'] = now
-                        lootState['quickLootCooldownUntil'] = now + 0.15
-                        print(
-                            f'[Loot] Quick Loot enviado por {hotkey} '
-                            f'(tentativa {attempts}/2, corpos pendentes: {len(corpsesToLoot)})'
-                        )
-                        return context
-                    break
-
-        removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
+        # Código Linux anterior:
+        # mesmo quando a aproximação havia falhado, a task enviava dois Alt+Q
+        # fora do alcance antes de descartar o cadáver selecionado.
         if self.discardSelectedCorpse and self.selectedCorpseCoordinate is not None:
-            # Código Linux anterior:
-            # from ...loot import discardCorpseByCoordinate
             discardCorpseByCoordinate(
                 corpsesToLoot,
                 self.selectedCorpseCoordinate,
                 context=context,
                 reason='approach-failed',
             )
+            lootState['pending'] = len(corpsesToLoot) > 0
+            lootState['detectedAt'] = (
+                lootState.get('detectedAt')
+                if lootState['pending']
+                else None
+            )
+            return context
+
+        printLootDiagnostic(
+            'quick_loot_send',
+            context,
+            hotkey=hotkey,
+        )
+        utilsKeyboard.hotkey(*keys)
+
+        # Código Linux anterior:
+        # eram enviados dois pulsos, separados por 0,15 s, usando lootAttempts
+        # persistido no cadáver. O cliente atual confirmou que um único Alt+Q
+        # é suficiente para toda a área 3×3.
+        # if self.selectedCorpseCoordinate is not None:
+        #     normSelected = normalizeCoordinate(self.selectedCorpseCoordinate)
+        #     for corpse in corpsesToLoot:
+        #         if (
+        #             isinstance(corpse, dict)
+        #             and normalizeCoordinate(corpse.get('coordinate'))
+        #             == normSelected
+        #         ):
+        #             attempts = corpse.get('lootAttempts', 0) + 1
+        #             corpse['lootAttempts'] = attempts
+        #             if attempts < 2:
+        #                 lootState['quickLootCooldownUntil'] = now + 0.15
+        #                 return context
+        #             break
+
+        removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
         lootState['pending'] = len(corpsesToLoot) > 0
         lootState['detectedAt'] = (
             lootState.get('detectedAt')

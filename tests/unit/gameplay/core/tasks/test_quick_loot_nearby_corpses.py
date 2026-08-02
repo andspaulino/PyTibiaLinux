@@ -28,7 +28,7 @@ def test_quick_loot_sends_one_hotkey_and_clears_pending(monkeypatch):
     assert context['loot']['quickLootCooldownUntil'] > context['loot']['lastQuickLootAt']
 
 
-def test_quick_loot_with_selected_corpse_executes_two_pulses(monkeypatch):
+def test_quick_loot_with_selected_corpse_executes_one_pulse(monkeypatch):
     calls = []
     monkeypatch.setattr(
         quick_loot_task.utilsKeyboard,
@@ -49,14 +49,37 @@ def test_quick_loot_with_selected_corpse_executes_two_pulses(monkeypatch):
 
     task = QuickLootNearbyCorpsesTask(selectedCorpseCoordinate=[100, 100, 7])
 
-    # Attempt 1: sends hotkey, keeps corpse in queue, sets 150ms cooldown
-    res1 = task.do(context)
-    assert len(calls) == 1
-    assert len(context['loot']['corpsesToLoot']) == 1
+    task.do(context)
 
-    # Attempt 2: sends hotkey again, removes corpse from queue
-    res2 = task.do(context)
-    assert len(calls) == 2
+    assert len(calls) == 1
     assert len(context['loot']['corpsesToLoot']) == 0
+    assert context['loot']['pending'] is False
+
+
+def test_discard_after_failed_approach_does_not_send_hotkey(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        quick_loot_task.utilsKeyboard,
+        'hotkey',
+        lambda *keys: calls.append(keys),
+    )
+    context = {
+        'radar': {'coordinate': [100, 100, 7]},
+        'loot': {
+            'quickLootHotkey': 'alt+q',
+            'pending': True,
+            'detectedAt': 10,
+            'corpsesToLoot': [{'coordinate': [104, 100, 7]}],
+            'quickLootCooldownUntil': 0,
+        },
+    }
+
+    QuickLootNearbyCorpsesTask(
+        selectedCorpseCoordinate=[104, 100, 7],
+        discardSelectedCorpse=True,
+    ).do(context)
+
+    assert calls == []
+    assert context['loot']['corpsesToLoot'] == []
     assert context['loot']['pending'] is False
 

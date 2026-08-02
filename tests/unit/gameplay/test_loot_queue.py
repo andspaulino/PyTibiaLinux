@@ -124,8 +124,16 @@ def test_discard_corpse_by_coordinate():
 
 def test_remove_expired_corpses(monkeypatch):
     corpses = [
-        {'name': 'old', 'coordinate': [100, 100, 7], 'queuedAt': 100.0},
-        {'name': 'fresh', 'coordinate': [105, 100, 7], 'queuedAt': 106.0},
+        {
+            'name': 'old',
+            'coordinate': [100, 100, 7],
+            'processingStartedAt': 100.0,
+        },
+        {
+            'name': 'fresh',
+            'coordinate': [105, 100, 7],
+            'processingStartedAt': 106.0,
+        },
     ]
     monkeypatch.setattr(loot_core, 'time', lambda: 109.0)
 
@@ -133,4 +141,36 @@ def test_remove_expired_corpses(monkeypatch):
 
     assert len(corpses) == 1
     assert corpses[0]['name'] == 'fresh'
+
+
+def test_waiting_corpse_does_not_expire_before_processing(monkeypatch):
+    corpse = {
+        'name': 'waiting',
+        'coordinate': [100, 100, 7],
+        'queuedAt': 100.0,
+    }
+    corpses = [corpse]
+    monkeypatch.setattr(loot_core, 'time', lambda: 120.0)
+
+    loot_core.removeExpiredCorpses(corpses)
+
+    assert corpses == [corpse]
+    assert 'processingStartedAt' not in corpse
+
+
+def test_active_corpse_is_protected_from_processing_timeout(monkeypatch):
+    corpse = {
+        'name': 'active',
+        'coordinate': [100, 100, 7],
+        'processingStartedAt': 100.0,
+    }
+    corpses = [corpse]
+    monkeypatch.setattr(loot_core, 'time', lambda: 120.0)
+
+    loot_core.removeExpiredCorpses(
+        corpses,
+        protectedCoordinate=[100, 100, 7],
+    )
+
+    assert corpses == [corpse]
 

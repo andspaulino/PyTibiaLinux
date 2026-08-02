@@ -154,21 +154,42 @@ def discardCorpseByCoordinate(
         )
 
 
-def removeExpiredCorpses(corpsesToLoot, context=None):
+def markCorpseAsProcessing(corpse):
+    if not isinstance(corpse, dict):
+        return
+    corpse.setdefault('processingStartedAt', time())
+
+
+def removeExpiredCorpses(
+    corpsesToLoot,
+    context=None,
+    protectedCoordinate=None,
+):
     now = time()
+    protected = normalizeCoordinate(protectedCoordinate)
     remaining = []
     for corpse in corpsesToLoot:
         if isinstance(corpse, dict):
             # Código Linux anterior:
-            # queuedAt = corpse.get('queuedAt', now)
-            queuedAt = corpse.setdefault('queuedAt', now)
-            if now - queuedAt >= CORPSE_QUEUE_TIMEOUT:
+            # queuedAt = corpse.setdefault('queuedAt', now)
+            # if now - queuedAt >= CORPSE_QUEUE_TIMEOUT:
+            processingStartedAt = corpse.get('processingStartedAt')
+            corpseCoordinate = normalizeCoordinate(corpse.get('coordinate'))
+            isProtected = (
+                protected is not None
+                and corpseCoordinate == protected
+            )
+            if (
+                processingStartedAt is not None
+                and not isProtected
+                and now - processingStartedAt >= CORPSE_QUEUE_TIMEOUT
+            ):
                 if context is not None:
                     printLootDiagnostic(
                         'corpse_discarded',
                         context,
                         corpseCoordinate=corpse.get('coordinate'),
-                        reason='queue-timeout',
+                        reason='processing-timeout',
                     )
                 continue
         remaining.append(corpse)
