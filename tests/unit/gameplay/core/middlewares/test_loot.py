@@ -123,6 +123,10 @@ def test_disabled_loot_clears_combat_movement_block():
 
 def test_new_loot_line_marks_pending(monkeypatch):
     context = make_context()
+    context['cavebot']['previousTargetCreature'] = {
+        'name': 'Bug',
+        'coordinate': [100, 100, 7],
+    }
     monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
     monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=True))
 
@@ -130,6 +134,19 @@ def test_new_loot_line_marks_pending(monkeypatch):
 
     assert result['loot']['pending'] is True
     assert result['loot']['detectedAt'] is not None
+    assert len(result['loot']['corpsesToLoot']) == 1
+
+
+def test_retrigger_without_corpse_candidate_is_ignored(monkeypatch):
+    context = make_context()
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(loot_middleware, 'hasNewLoot', MagicMock(return_value=True))
+
+    result = loot_middleware.setLootChatMiddleware(context)
+
+    assert result['loot']['pending'] is False
+    assert result['loot']['detectedAt'] is None
+    assert result['loot']['corpsesToLoot'] == []
 
 
 def test_new_loot_line_during_cooldown_only_updates_baseline(monkeypatch):

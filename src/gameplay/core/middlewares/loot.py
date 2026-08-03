@@ -182,6 +182,20 @@ def setLootChatMiddleware(context: Context) -> Context:
         lootState['lastCombatEndedCreature'] = None
         if addedCorpse:
             context['cavebot']['previousTargetCreature'] = None
+        hasTrackedCorpse = len(lootState['corpsesToLoot']) > 0
+        # Código Linux anterior:
+        # lootState['pending'] = True
+        # Mesmo sem candidato ou cadáver na fila, um retrigger visual marcava
+        # pending e enviava Alt+Q durante o waypoint.
+        if not hasTrackedCorpse:
+            printLootDiagnostic(
+                'loot_ignored',
+                context,
+                reason='no-corpse-candidate',
+                corpseQueued=False,
+                corpseQueueSize=0,
+            )
+            return context
         lootState['pending'] = True
         lootState['detectedAt'] = now
         print('[Loot] Nova linha Loot of detectada')

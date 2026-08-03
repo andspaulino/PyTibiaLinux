@@ -85,11 +85,26 @@ class WalkToTargetCreatureTask(VectorTask):
             return True
         if targetCoord[2] != self.targetCreatureCoordinateSinceLastRestart[2]:
             return True
-        distShift = distance.cdist(
-            [targetCoord],
-            [self.targetCreatureCoordinateSinceLastRestart],
-        ).flatten()[0]
-        if distShift > 2:
+        # Código Linux anterior:
+        # distShift = distance.cdist(
+        #     [targetCoord],
+        #     [self.targetCreatureCoordinateSinceLastRestart],
+        # ).flatten()[0]
+        # if distShift > 2:
+        #     return True
+        # Em uma grade, delta (1, 2) ainda representa no máximo dois SQMs por
+        # eixo. A distância euclidiana 2,236 reiniciava a perseguição sem necessidade.
+        gridShift = max(
+            abs(
+                targetCoord[0]
+                - self.targetCreatureCoordinateSinceLastRestart[0]
+            ),
+            abs(
+                targetCoord[1]
+                - self.targetCreatureCoordinateSinceLastRestart[1]
+            ),
+        )
+        if gridShift > 2:
             return True
         if len(self.tasks) > 0:
             return False

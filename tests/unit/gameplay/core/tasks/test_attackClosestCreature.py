@@ -56,15 +56,23 @@ def test_walkToTargetCreature_shouldRestart_tolerance():
     task.tasks = ['mock_walk_task']
     task.targetCreatureCoordinateSinceLastRestart = [10, 10, 7]
 
-    # Target shift of 1 SQM -> should NOT restart (tolerates micro-movements).
+    # Grid shifts of up to 2 SQMs per axis do not restart.
     ctx_1sqm = {
         'cavebot': {'targetCreature': {'coordinate': [10, 11, 7]}},
     }
     assert task.shouldRestart(ctx_1sqm) is False
+    ctx_1x2sqm = {
+        'cavebot': {'targetCreature': {'coordinate': [11, 12, 7]}},
+    }
+    assert task.shouldRestart(ctx_1x2sqm) is False
+    ctx_2x2sqm = {
+        'cavebot': {'targetCreature': {'coordinate': [12, 12, 7]}},
+    }
+    assert task.shouldRestart(ctx_2x2sqm) is False
 
-    # Target shift of > 2 SQM -> SHOULD restart.
+    # Target shift of > 2 SQMs on one axis -> SHOULD restart.
     ctx_3sqm = {
-        'cavebot': {'targetCreature': {'coordinate': [10, 14, 7]}},
+        'cavebot': {'targetCreature': {'coordinate': [10, 13, 7]}},
     }
     assert task.shouldRestart(ctx_3sqm) is True
 
