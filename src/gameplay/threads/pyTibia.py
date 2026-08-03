@@ -31,8 +31,9 @@ from src.gameplay.loot import (
     removeExpiredCorpses,
 )
 from src.gameplay.lootDiagnostics import printLootDiagnostic
+from src.gameplay.navigation import getActiveTransientBlockedCoordinates
 from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
-from src.repositories.gameWindow.creatures import getClosestCreature
+from src.repositories.gameWindow.creatures import getClosestCreature, getClosestReachableCreature
 
 
 pyautogui.FAILSAFE = False
@@ -191,6 +192,25 @@ class PyTibiaThread:
         cavebotEnabled = context['cavebot'].get('enabled', False)
 
         context['cavebot']['closestCreature'] = None
+        hasAttackableCreatures = (
+            targetingEnabled
+            and hasCreaturesToAttack(context)
+        )
+        attackableMonsters = []
+        if hasAttackableCreatures:
+            canIgnoreCreatures = context['targeting'].get(
+                'canIgnoreCreatures',
+                True,
+            )
+            for monster in context['gameWindow']['monsters']:
+                creatureConfig = context['targeting']['creatures'].get(
+                    monster.get('name'),
+                    {'ignore': False},
+                )
+                if canIgnoreCreatures and creatureConfig.get('ignore', False):
+                    continue
+                attackableMonsters.append(monster)
+
         # Código Linux anterior: o Targeting era bloqueado sempre que o Radar
         # não reconhecia a coordenada mundial, mesmo sem Cavebot/caminhada.
         # if (
@@ -206,16 +226,38 @@ class PyTibiaThread:
         )
         if (
             targetingEnabled
+            and hasAttackableCreatures
             and canResolveClosestCreature
-            and len(context['gameWindow']['monsters']) > 0
+            and len(attackableMonsters) > 0
         ):
-            closestCreatureCoordinate = (
-                context['radar']['coordinate']
-                if context['radar']['coordinate'] is not None
-                else VISUAL_TARGETING_FALLBACK_COORDINATE
-            )
-            context['cavebot']['closestCreature'] = getClosestCreature(
-                context['gameWindow']['monsters'], closestCreatureCoordinate)
+            radarCoordinate = context['radar']['coordinate']
+            if cavebotEnabled and radarCoordinate is not None:
+                # Código Linux anterior:
+                # context['cavebot']['closestCreature'] = getClosestCreature(
+                #     context['gameWindow']['monsters'], radarCoordinate)
+                nonWalkableCoordinates = list(
+                    context['cavebot'].get('holesOrStairs', [])
+                )
+                nonWalkableCoordinates.extend(
+                    getActiveTransientBlockedCoordinates(context)
+                )
+                context['cavebot']['closestCreature'] = (
+                    getClosestReachableCreature(
+                        attackableMonsters,
+                        radarCoordinate,
+                        nonWalkableCoordinates=nonWalkableCoordinates,
+                    )
+                )
+            else:
+                closestCreatureCoordinate = (
+                    radarCoordinate
+                    if radarCoordinate is not None
+                    else VISUAL_TARGETING_FALLBACK_COORDINATE
+                )
+                context['cavebot']['closestCreature'] = getClosestCreature(
+                    attackableMonsters,
+                    closestCreatureCoordinate,
+                )
 
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
         if currentTask is not None and currentTask.name == 'selectChatTab':
@@ -499,9 +541,15 @@ class PyTibiaThread:
             and not context.get('pause', False)
             and not lootBlocksMovement
         )
+        # Código Linux anterior:
+        # hasCreaturesToAttackAfterCheck = (
+        #     targetingEnabled
+        #     and hasCreaturesToAttack(context)
+        # )
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
-            and hasCreaturesToAttack(context)
+            and hasAttackableCreatures
+            and context['cavebot']['closestCreature'] is not None
         )
 
         if hasCreaturesToAttackAfterCheck:
@@ -540,6 +588,24 @@ class PyTibiaThread:
                         allowChase=allowChase,
                     )
         else:
+            targetIsCurrentlyUnreachable = (
+                targetingEnabled
+                and cavebotEnabled
+                and context['radar']['coordinate'] is not None
+                and hasAttackableCreatures
+                and context['cavebot']['closestCreature'] is None
+            )
+            if (
+                targetIsCurrentlyUnreachable
+                and currentRootTask is not None
+                and currentRootTask.name == 'attackClosestCreature'
+            ):
+                printLootDiagnostic(
+                    'target_unreachable',
+                    context,
+                    reason='no-adjacent-path',
+                )
+                context['tasksOrchestrator'].setRootTask(context, None)
             if lootBlocksMovement:
                 context['way'] = (
                     'lootPending'

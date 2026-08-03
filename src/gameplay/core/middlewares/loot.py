@@ -18,6 +18,26 @@ QUICK_LOOT_NEARBY_SLOTS = {
 }
 
 
+def isCreatureStillPresent(context: Context, creature) -> bool:
+    if not creature or not isinstance(creature, dict):
+        return False
+    targetCoord = creature.get('coordinate')
+    if targetCoord is None or len(targetCoord) != 3:
+        return False
+    monsters = context.get('gameWindow', {}).get('monsters', [])
+    for monster in monsters:
+        if not isinstance(monster, dict):
+            continue
+        monsterCoord = monster.get('coordinate')
+        if (
+            monsterCoord is not None
+            and len(monsterCoord) == 3
+            and tuple(monsterCoord) == tuple(targetCoord)
+        ):
+            return True
+    return False
+
+
 def isTargetCreatureStillAlive(context: Context) -> bool:
     target = (
         context.get('cavebot', {}).get('targetCreature')
@@ -175,6 +195,18 @@ def setLootChatMiddleware(context: Context) -> Context:
             lootState.get('lastCombatEndedCreature')
             or context.get('cavebot', {}).get('previousTargetCreature')
         )
+        if isCreatureStillPresent(context, corpseCandidate):
+            # Uma linha visual antiga/retriggerada não pode transformar o alvo
+            # que ainda ocupa a mesma coordenada em um cadáver navegável.
+            lootState['lastCombatEndedCreature'] = None
+            printLootDiagnostic(
+                'loot_ignored',
+                context,
+                reason='corpse-candidate-still-alive',
+                corpseQueued=False,
+                corpseQueueSize=len(lootState['corpsesToLoot']),
+            )
+            return context
         addedCorpse = addCorpseToQueue(
             lootState['corpsesToLoot'],
             corpseCandidate,

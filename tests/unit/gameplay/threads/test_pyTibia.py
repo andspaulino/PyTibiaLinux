@@ -244,7 +244,7 @@ def test_handle_gameplay_tasks_enables_chase_only_with_targeting_cavebot_and_rad
     )
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
@@ -316,7 +316,7 @@ def test_handle_gameplay_tasks_replaces_attack_root_when_chase_mode_changes(monk
     context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
@@ -354,7 +354,7 @@ def test_handle_gameplay_tasks_keeps_matching_chase_root(monkeypatch):
     context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
@@ -372,6 +372,48 @@ def test_handle_gameplay_tasks_keeps_matching_chase_root(monkeypatch):
 
     PyTibiaThread(None).handleGameplayTasks(context)
 
+    resolveTargetingTasks.assert_not_called()
+
+
+def test_unreachable_target_interrupts_attack_root_without_recreating_it(
+    monkeypatch,
+):
+    monster = {
+        'name': 'Rat',
+        'slot': (12, 5),
+        'coordinate': [105, 100, 7],
+    }
+    context = make_gameplay_context(
+        cavebot_enabled=True,
+        targeting_enabled=True,
+        monsters=[monster],
+    )
+    currentRootTask = MagicMock()
+    currentRootTask.name = 'attackClosestCreature'
+    currentRootTask.allowChase = True
+    currentTask = MagicMock(rootTask=currentRootTask)
+    context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
+        MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.hasCreaturesToAttack',
+        MagicMock(return_value=True),
+    )
+    resolveTargetingTasks = MagicMock(return_value=context)
+    monkeypatch.setattr(
+        'src.gameplay.threads.pyTibia.resolveTargetingTasks',
+        resolveTargetingTasks,
+    )
+
+    PyTibiaThread(None).handleGameplayTasks(context)
+
+    assert context['cavebot']['closestCreature'] is None
+    context['tasksOrchestrator'].setRootTask.assert_called_once_with(
+        context,
+        None,
+    )
     resolveTargetingTasks.assert_not_called()
 
 
@@ -472,7 +514,7 @@ def test_post_combat_delay_keeps_distant_target_selection_only(monkeypatch):
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr('src.gameplay.threads.pyTibia.time', lambda: 10)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
@@ -550,7 +592,7 @@ def test_handle_gameplay_tasks_keeps_adjacent_combat_without_chase(monkeypatch):
     })
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
@@ -597,7 +639,7 @@ def test_pending_loot_removes_chase_even_during_protected_single_walk(monkeypatc
     context['tasksOrchestrator'].getCurrentTask.return_value = currentTask
     resolveTargetingTasks = MagicMock(return_value=context)
     monkeypatch.setattr(
-        'src.gameplay.threads.pyTibia.getClosestCreature',
+        'src.gameplay.threads.pyTibia.getClosestReachableCreature',
         MagicMock(return_value=monster),
     )
     monkeypatch.setattr(
