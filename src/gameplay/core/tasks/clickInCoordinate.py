@@ -14,6 +14,9 @@ class ClickInCoordinateTask(BaseTask):
         self.delayAfterComplete = 0.5
         self.waypoint = waypoint
 
+    def shouldIgnore(self, context: Context) -> bool:
+        return self.did(context)
+
     def do(self, context: Context) -> Context:
         slot = gameWindowCore.getSlotFromCoordinate(
             context['radar']['coordinate'], self.waypoint['coordinate'])

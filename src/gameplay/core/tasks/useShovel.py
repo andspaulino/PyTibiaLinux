@@ -1,3 +1,4 @@
+import src.gameplay.utils as gameplayUtils
 import src.repositories.gameWindow.core as gameWindowCore
 import src.repositories.gameWindow.slot as gameWindowSlot
 from src.shared.typings import Waypoint
@@ -15,6 +16,25 @@ class UseShovelTask(BaseTask):
         self.waypoint = waypoint
 
     def shouldIgnore(self, context: Context) -> bool:
+        coordinate = context['radar']['coordinate']
+        waypointState = context['cavebot']['waypoints']['state']
+        checkInCoordinate = (
+            waypointState.get('checkInCoordinate')
+            if waypointState is not None
+            else None
+        )
+        if (
+            coordinate is not None
+            and checkInCoordinate is not None
+            and gameplayUtils.coordinatesAreEqual(
+                coordinate, checkInCoordinate
+            )
+        ):
+            return True
+
+        # Código original:
+        # return gameWindowCore.isHoleOpen(
+        #     context['gameWindow']['image'], gameWindowCore.images[context['resolution']]['holeOpen'], context['radar']['coordinate'], self.waypoint['coordinate'])
         return gameWindowCore.isHoleOpen(
             context['gameWindow']['image'], gameWindowCore.images[context['resolution']]['holeOpen'], context['radar']['coordinate'], self.waypoint['coordinate'])
 

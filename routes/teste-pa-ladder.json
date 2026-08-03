@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "name": "teste-pa-ladder",
+  "waypoints": [
+    {
+      "label": "walk001",
+      "type": "walk",
+      "coordinate": [32490, 31698, 7],
+      "options": {}
+    },
+    {
+      "label": "useShovel001",
+      "type": "useShovel",
+      "coordinate": [32490, 31697, 7],
+      "options": {}
+    },
+    {
+      "label": "useTeleport001",
+      "type": "useTeleport",
+      "coordinate": [32490, 31697, 8],
+      "options": {}
+    },
+    {
+      "label": "walk002",
+      "type": "walk",
+      "coordinate": [32490, 31698, 7],
+      "options": {}
+    }
+  ]
+}
