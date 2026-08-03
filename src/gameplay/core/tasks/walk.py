@@ -1,4 +1,5 @@
 import src.gameplay.utils as gameplayUtils
+from src.gameplay.navigation import addTransientBlockedCoordinate
 from src.repositories.radar.core import getBreakpointTileMovementSpeed, getTileFrictionByCoordinate
 from src.repositories.skills.core import getSpeed
 from src.shared.typings import Coordinate
@@ -112,7 +113,14 @@ class WalkTask(BaseTask):
     # TODO: add unit tests
     def onTimeout(self, context: Context) -> Context:
         navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
+        # Código Linux anterior:
+        # navigation['status'] = 'blocked'
+        # navigation['failureReason'] = 'movement-timeout'
+        # navigation['plannedDirection'] = None
+        # return releaseKeys(context)
+        addTransientBlockedCoordinate(context, self.walkpoint)
         navigation['status'] = 'blocked'
         navigation['failureReason'] = 'movement-timeout'
         navigation['plannedDirection'] = None
+        navigation['timedOutCoordinate'] = self.walkpoint
         return releaseKeys(context)

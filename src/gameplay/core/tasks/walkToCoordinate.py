@@ -1,5 +1,6 @@
 from src.gameplay.typings import Context
 import src.gameplay.utils as gameplayUtils
+from src.gameplay.navigation import getActiveTransientBlockedCoordinates
 from src.repositories.radar.typings import Coordinate
 from ...typings import Context
 from ..waypoint import calculateFloorWalkpoints
@@ -98,6 +99,9 @@ class WalkToCoordinateTask(VectorTask):
             for monster in context['gameWindow']['monsters']
             if isinstance(monster, dict)
         )
+        # Adaptação Linux: um SQM que não respondeu ao input é evitado por um
+        # período curto, permitindo desvio sem alterar permanentemente o atlas.
+        candidates.extend(getActiveTransientBlockedCoordinates(context))
         nonWalkableCoordinates = []
         seen = set()
         for candidate in candidates:

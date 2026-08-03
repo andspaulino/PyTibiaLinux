@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from src.gameplay import navigation
 from src.gameplay.core import waypoint
 from src.gameplay.core.middlewares.radar import setWaypointIndexMiddleware
 from src.gameplay.core.tasks.orchestrator import TasksOrchestrator
@@ -291,6 +292,71 @@ def test_walk_to_coordinate_restarts_only_when_obstacles_change(monkeypatch):
     assert context["cavebot"]["navigation"]["failureReason"] == "obstacles-changed"
 
 
+def test_movement_timeout_recalculates_route_avoiding_timed_out_tile(
+    monkeypatch,
+):
+    install_floor(monkeypatch)
+    context = make_context()
+    monkeypatch.setattr(navigation, "time", lambda: 10.0)
+    timedOutWalk = object.__new__(WalkTask)
+    timedOutWalk.walkpoint = (54, 54, 0)
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walk.releaseKeys",
+        lambda currentContext: currentContext,
+    )
+
+    timedOutWalk.onTimeout(context)
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.calculateWalkpoint(context)
+
+    walkpoints = [tuple(child.walkpoint) for child in task.tasks]
+    assert task.pathfindingFailureReason is None
+    assert (54, 54, 0) not in walkpoints
+    assert walkpoints[-1] == (55, 54, 0)
+    assert context["cavebot"]["navigation"]["blockedCoordinates"] == [
+        (54, 54, 0)
+    ]
+
+
+def test_path_not_found_waits_for_transient_block_to_expire(monkeypatch):
+    floor = np.zeros((109, 106), dtype=np.uint8)
+    floor[54, 53:56] = 1
+    install_floor(monkeypatch, floor)
+    context = make_context()
+    currentTime = [10.0]
+    monkeypatch.setattr(navigation, "time", lambda: currentTime[0])
+    navigation.addTransientBlockedCoordinate(
+        context,
+        (54, 54, 0),
+        now=currentTime[0],
+    )
+    task = WalkToCoordinateTask((55, 54, 0))
+    task.calculateWalkpoint(context)
+
+    assert task.tasks == []
+    assert task.pathfindingFailureReason == "path-not-found"
+    assert task.shouldRestartAfterAllChildrensComplete(context) is False
+    assert task.shouldRestart(context) is False
+    assert task.shouldRestart(context) is False
+
+    currentTime[0] = 13.0
+
+    assert task.shouldRestart(context) is True
+    monkeypatch.setattr(
+        "src.gameplay.core.tasks.walkToCoordinate.gameplayUtils.releaseKeys",
+        lambda currentContext: currentContext,
+    )
+    task.onBeforeRestart(context)
+
+    assert task.pathfindingFailureReason is None
+    assert [tuple(child.walkpoint) for child in task.tasks] == [
+        (54, 54, 0),
+        (55, 54, 0),
+    ]
+    assert context["cavebot"]["navigation"]["blockedCoordinates"] == []
+    assert context["cavebot"]["navigation"]["status"] == "walking"
+
+
 def test_walk_to_coordinate_recalculates_without_advancing_goal(monkeypatch):
     install_floor(monkeypatch)
     context = make_context()
@@ -517,8 +583,13 @@ def test_walk_task_releases_keys_on_interrupt_and_timeout(monkeypatch, hook):
     assert context["lastPressedKey"] is None
     assert context["cavebot"]["navigation"]["plannedDirection"] is None
     if hook == "onTimeout":
-        assert context["cavebot"]["navigation"]["status"] == "blocked"
-        assert context["cavebot"]["navigation"]["failureReason"] == "movement-timeout"
+        navigation = context["cavebot"]["navigation"]
+        assert navigation["status"] == "blocked"
+        assert navigation["failureReason"] == "movement-timeout"
+        assert navigation["timedOutCoordinate"] == (54, 54, 0)
+        transientBlocks = navigation["transientBlockedCoordinates"]
+        assert len(transientBlocks) == 1
+        assert transientBlocks[0]["coordinate"] == [54, 54, 0]
 
 
 def test_waypoint_on_another_floor_stays_blocked_without_advancing(monkeypatch):
