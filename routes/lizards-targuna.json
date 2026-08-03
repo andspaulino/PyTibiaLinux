@@ -305,14 +305,16 @@
       "options": {}
     },
     {
-      "label": "walk030",
-      "type": "walk",
+      "label": "moveDown002",
+      "type": "moveDown",
       "coordinate": [
         31936,
         31862,
         7
       ],
-      "options": {}
+      "options": {
+        "direction": "south"
+      }
     }
   ]
 }

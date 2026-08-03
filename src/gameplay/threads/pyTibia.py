@@ -33,6 +33,7 @@ class PyTibiaThread:
     def __init__(self, context, uiEnabled=False):
         self.context = context
         self.uiEnabled = uiEnabled
+        self._lastDiagnosticState = None
 
     def mainloop(self):
         if (
@@ -77,6 +78,7 @@ class PyTibiaThread:
                         self.context.context)
                     self.context.context = self.context.context['tasksOrchestrator'].do(
                         self.context.context)
+                    self.logMainState(self.context.context)
                     self.context.context['radar']['lastCoordinateVisited'] = self.context.context['radar']['coordinate']
                     healingByPotions(self.context.context)
                     healingBySpells(self.context.context)
@@ -92,6 +94,82 @@ class PyTibiaThread:
             #     print('An exception occurred:', traceback.format_exc())
             except Exception:
                 print('An exception occurred:', traceback.format_exc())
+
+    def logMainState(self, context):
+        orchestrator = context['tasksOrchestrator']
+        currentTask = orchestrator.getCurrentTask(context)
+        rootTask = orchestrator.rootTask
+        rootName = rootTask.name if rootTask is not None else None
+        taskName = currentTask.name if currentTask is not None else None
+
+        coordinate = context.get('radar', {}).get('coordinate')
+        coordinateSignature = (
+            tuple(coordinate) if coordinate is not None else None
+        )
+
+        waypoints = context.get('cavebot', {}).get('waypoints', {})
+        waypointIndex = waypoints.get('currentIndex')
+        waypointItems = waypoints.get('items', [])
+        waypoint = (
+            waypointItems[waypointIndex]
+            if (
+                isinstance(waypointIndex, int)
+                and 0 <= waypointIndex < len(waypointItems)
+            )
+            else None
+        )
+        waypointLabel = waypoint.get('label') if waypoint else None
+        waypointType = waypoint.get('type') if waypoint else None
+        waypointCoordinate = waypoint.get('coordinate') if waypoint else None
+        waypointCoordinateSignature = (
+            tuple(waypointCoordinate)
+            if waypointCoordinate is not None
+            else None
+        )
+
+        cavebot = context.get('cavebot', {})
+        target = cavebot.get('targetCreature')
+        targetName = target.get('name') if isinstance(target, dict) else None
+        targetCoordinate = (
+            target.get('coordinate') if isinstance(target, dict) else None
+        )
+        targetCoordinateSignature = (
+            tuple(targetCoordinate)
+            if targetCoordinate is not None
+            else None
+        )
+        isAttacking = bool(cavebot.get('isAttackingSomeCreature', False))
+        corpseCount = len(context.get('loot', {}).get('corpsesToLoot', []))
+        lastPressedKey = context.get('lastPressedKey')
+
+        diagnosticState = (
+            coordinateSignature,
+            rootName,
+            taskName,
+            waypointIndex,
+            waypointLabel,
+            waypointType,
+            waypointCoordinateSignature,
+            isAttacking,
+            targetName,
+            targetCoordinateSignature,
+            corpseCount,
+            lastPressedKey,
+        )
+        if diagnosticState == self._lastDiagnosticState:
+            return
+        self._lastDiagnosticState = diagnosticState
+
+        print(
+            '[MainDiag] '
+            f'coordinate={coordinateSignature} '
+            f'root={rootName} task={taskName} '
+            f'waypointIndex={waypointIndex} '
+            f'waypoint={waypointLabel}:{waypointType}:{waypointCoordinateSignature} '
+            f'attacking={isAttacking} '
+            f'target={targetName}:{targetCoordinateSignature} '
+            f'corpses={corpseCount} lastKey={lastPressedKey}'
+        )
 
     def handleGameData(self, context):
         if context['pause']:
