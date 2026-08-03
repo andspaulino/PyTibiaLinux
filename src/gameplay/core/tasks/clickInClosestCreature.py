@@ -16,18 +16,10 @@ class ClickInClosestCreatureTask(BaseTask):
     def do(self, context: Context) -> Context:
         # attack by mouse click when there are players on screen or ignorable creatures
         if context['gameWindow']['players'] or context['targeting']['hasIgnorableCreatures']:
-            # Código original:
-            # keyboard.keyDown('alt')
-            # mouse.leftClick(context['cavebot']
-            #                 ['closestCreature']['windowCoordinate'])
-            # keyboard.keyUp('alt')
-            # Adaptação defensiva Linux: sempre libera Alt se o clique falhar.
             keyboard.keyDown('alt')
-            try:
-                mouse.leftClick(context['cavebot']
-                                ['closestCreature']['windowCoordinate'])
-            finally:
-                keyboard.keyUp('alt')
+            mouse.leftClick(context['cavebot']
+                            ['closestCreature']['windowCoordinate'])
+            keyboard.keyUp('alt')
             return context
         keyboard.press('space')
         return context

@@ -14,15 +14,6 @@ context = {
         'enabled': True,
         'holesOrStairs': [],
         'isAttackingSomeCreature': False,
-        'navigation': {
-            'blockedCoordinates': [],
-            'failureReason': None,
-            'goalCoordinate': None,
-            'nextWalkpoint': None,
-            'plannedDirection': None,
-            'status': 'idle',
-            'walkpoints': [],
-        },
         'previousTargetCreature': None,
         'targetCreature': None,
         'waypoints': {
@@ -136,28 +127,11 @@ context = {
             'eatWhenFoodIslessOrEqual': 0,
         }
     },
-    # Código Linux anterior:
-    # o estado de Looting continha modo legado, monitoramento de Highlighting,
-    # buffers de frames, confirmação visual, ausência e retries. O snapshot
-    # integral está em `docs/historico-looting/`.
     'loot': {
-        'enabled': False,
-        'quickLootHotkey': 'alt+q',
-        # Código original:
-        # 'corpsesToLoot': [],
         'corpsesToLoot': [],
-        'lastCombatEndedCreature': None,
-        'pending': False,
-        'detectedAt': None,
-        'lastQuickLootAt': None,
-        'quickLootCooldownUntil': 0,
-        'movementBlockedUntil': 0,
-        'wasAttacking': False,
-        'chatMonitoringEnabled': False,
     },
     'lastPressedKey': None,
     'pause': True,
-    'shutdown': False,
     'radar': {
         'coordinate': None,
         'previousCoordinate': None,

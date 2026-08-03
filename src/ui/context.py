@@ -5,6 +5,7 @@ import time
 from tinydb import Query, TinyDB
 from tkinter import messagebox
 from src.gameplay.core.load import loadContextFromConfig
+from src.gameplay.utils import releaseKeys
 from src.repositories.chat.core import getTabs
 from src.routes.store import DEFAULT_ROUTES_DIRECTORY, RouteStore
 from src.utils.core import getScreenshot
@@ -311,6 +312,7 @@ class Context:
             self.context['pause'] = True
             self.context['tasksOrchestrator'].setRootTask(
                 self.context, None)
+            releaseKeys(self.context)
             self.context['cavebot']['waypoints']['currentIndex'] = None
 
     def toggleHealingPotionsByKey(self, healthPotionType, enabled):

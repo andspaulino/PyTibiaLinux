@@ -38,8 +38,6 @@ def getBeingAttackedCreatures(content: GrayImage, filledSlotsCount: int) -> Gene
 def getCreatures(content: GrayImage) -> CreatureList:
     if content is None:
         return np.array([], dtype=Creature)
-    # Código original:
-    # filledSlotsCount = getFilledSlotsCount(content)
     filledSlotsCount = getFilledSlotsCount(content)
     if filledSlotsCount == 0:
         return np.array([], dtype=Creature)
@@ -80,8 +78,6 @@ def getFilledSlotsCount(content: GrayImage) -> int:
 def hasSkull(content: GrayImage, creatures: CreatureList) -> bool:
     if content is None or creatures is None or len(creatures) == 0:
         return False
-    # Código original:
-    # for creatureIndex, creature in enumerate(creatures):
     for creatureIndex, creature in enumerate(creatures):
         if creature['name'] != 'Unknown':
             continue

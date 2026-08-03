@@ -1,9 +1,6 @@
-import gc
 import tkinter as tk
 from threading import Event, Thread
 
-# Código Linux anterior:
-# from src.ui.application import Application
 from src.ui.application import Application
 
 
@@ -16,10 +13,9 @@ class UIThread(Thread):
         self.closeRequested = Event()
 
     def run(self):
-        # Código Linux anterior:
+        # Código original:
         # app = Application(self.context)
         # app.mainloop()
-        # pass
         try:
             app = Application(self.context)
             self.app = app
@@ -38,8 +34,6 @@ class UIThread(Thread):
                     except tk.TclError:
                         pass
                 self.app = None
-                del app
-                gc.collect()
 
     def _monitorCloseRequest(self):
         app = self.app
@@ -49,7 +43,10 @@ class UIThread(Thread):
             self.closeRequested.is_set()
             or self.context.context.get('shutdown', False)
         ):
-            app.close()
+            try:
+                app.destroy()
+            except tk.TclError:
+                pass
             return
         app.after(50, self._monitorCloseRequest)
 

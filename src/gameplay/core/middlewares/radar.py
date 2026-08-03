@@ -11,9 +11,13 @@ def setRadarMiddleware(context: Context) -> Context:
 
 # TODO: add unit tests
 def setWaypointIndexMiddleware(context: Context) -> Context:
-    if context['radar']['coordinate'] is None or len(context['cavebot']['waypoints']['items']) == 0:
+    # Guarda defensiva Linux: ausência transitória do Radar não pode gerar
+    # índice de waypoint a partir de uma coordenada inexistente.
+    if (
+        context['radar']['coordinate'] is None
+        or len(context['cavebot']['waypoints']['items']) == 0
+    ):
         return context
-    # Código original:
     if context['cavebot']['waypoints']['currentIndex'] is None:
         context['cavebot']['waypoints']['currentIndex'] = getClosestWaypointIndexFromCoordinate(
             context['radar']['coordinate'], context['cavebot']['waypoints']['items'])

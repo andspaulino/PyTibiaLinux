@@ -8,9 +8,6 @@ from src.utils.mouse import leftClick, moveTo, rightClick
 def getSlotPosition(slot: Slot, gameWindowPosition: BBox) -> Union[Slot, None]:
     if slot is None or gameWindowPosition is None:
         return None
-    # Código original:
-    # (gameWindowPositionX, gameWindowPositionY, gameWindowWidth, gameWindowHeight) = gameWindowPosition
-    # (slotX, slotY) = slot
     (gameWindowPositionX, gameWindowPositionY, gameWindowWidth, gameWindowHeight) = gameWindowPosition
     (slotX, slotY) = slot
     slotHeight = gameWindowHeight // 11
@@ -35,9 +32,6 @@ def clickSlot(slot: Slot, gameWindowPosition: BBox):
     slotPosition = getSlotPosition(slot, gameWindowPosition)
     if slotPosition is None:
         return
-    # Código original:
-    # moveToSlot(slot, gameWindowPosition)
-    # leftClick()
     moveTo(slotPosition)
     leftClick()
 
@@ -48,8 +42,6 @@ def rightClickSlot(slot: Slot, gameWindowPosition: BBox):
     slotPosition = getSlotPosition(slot, gameWindowPosition)
     if slotPosition is None:
         return
-    # Código original:
-    # moveToSlot(slot, gameWindowPosition)
-    # rightClick()
     moveTo(slotPosition)
     rightClick()
+

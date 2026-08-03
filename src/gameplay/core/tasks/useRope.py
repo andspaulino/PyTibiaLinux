@@ -18,13 +18,6 @@ class UseRopeTask(BaseTask):
     def do(self, context: Context) -> Context:
         slot = gameWindowCore.getSlotFromCoordinate(
             context['radar']['coordinate'], self.waypoint['coordinate'])
-        # Código original mantido comentado:
-        # keyboard.press('o')
-        keyboard.press('-')
+        keyboard.press('o')
         gameWindowSlot.clickSlot(slot, context['gameWindow']['coordinate'])
-        return context
-
-    def onComplete(self, context: Context):
-        if context.get('radar', {}).get('coordinate') is not None:
-            context['radar']['lastCoordinateVisited'] = context['radar']['coordinate']
         return context

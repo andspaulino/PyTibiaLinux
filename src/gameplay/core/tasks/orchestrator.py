@@ -52,6 +52,7 @@ class TasksOrchestrator:
     # TODO: add unit tests
     def do(self, context: Context) -> Context:
         currentTask = self.getCurrentTask(context)
+        # Guarda defensiva Linux: o loop pode estar ativo sem root.
         if currentTask is None:
             return context
         self.checkHooks(currentTask, context)

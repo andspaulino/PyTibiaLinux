@@ -10,23 +10,12 @@ class SetNextWaypointTask(BaseTask):
         self.name = 'setNextWaypoint'
 
     # TODO: add unit tests
-    # Código original mantido comentado:
-    # def do(self, context: Context) -> Context:
-    #     nextWaypointIndex = getNextArrayIndex(
-    #         context['cavebot']['waypoints']['items'], context['cavebot']['waypoints']['currentIndex'])
-    #     context['cavebot']['waypoints']['currentIndex'] = nextWaypointIndex
-    #     currentWaypoint = context['cavebot']['waypoints']['items'][context['cavebot']
-    #                                                                ['waypoints']['currentIndex']]
-    #     context['cavebot']['waypoints']['state'] = resolveGoalCoordinate(
-    #         context['radar']['coordinate'], currentWaypoint)
-    #     return context
     def do(self, context: Context) -> Context:
         nextWaypointIndex = getNextArrayIndex(
             context['cavebot']['waypoints']['items'], context['cavebot']['waypoints']['currentIndex'])
         context['cavebot']['waypoints']['currentIndex'] = nextWaypointIndex
         currentWaypoint = context['cavebot']['waypoints']['items'][context['cavebot']
                                                                    ['waypoints']['currentIndex']]
-        print(f"[SetNextWaypoint] Avançou para o próximo waypoint [índice {nextWaypointIndex}]: {currentWaypoint}")
         context['cavebot']['waypoints']['state'] = resolveGoalCoordinate(
             context['radar']['coordinate'], currentWaypoint)
         return context

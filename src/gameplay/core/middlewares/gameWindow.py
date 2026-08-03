@@ -1,25 +1,11 @@
 from src.repositories.battleList.core import getBeingAttackedCreatureCategory
-# Código original:
-# from src.repositories.chat.core import hasNewLoot
+from src.repositories.chat.core import hasNewLoot
 from src.repositories.gameWindow.config import gameWindowSizes
 from src.repositories.gameWindow.core import getCoordinate, getImageByCoordinate
-from src.repositories.gameWindow.creatures import getCreatures, getCreaturesByType, getTargetCreature
-# Código original:
-# from src.repositories.gameWindow.creatures import getDifferentCreaturesBySlots
-# from ...comboSpells.core import spellsPath
+from src.repositories.gameWindow.creatures import getCreatures, getCreaturesByType, getDifferentCreaturesBySlots, getTargetCreature
+from ...comboSpells.core import spellsPath
 from ...typings import Context
-# Código original:
-# from ..tasks.selectChatTab import SelectChatTabTask
-
-
-# Coordenada interna sem significado mundial, usada somente para montar a grade
-# visual quando o Targeting está desacoplado do Radar e não pode caminhar.
-VISUAL_TARGETING_FALLBACK_COORDINATE = (32000, 32000, 7)
-
-
-def canUseVisualTargetingWithoutRadar(context: Context) -> bool:
-    return context['targeting'].get('enabled', False)
-
+from ..tasks.selectChatTab import SelectChatTabTask
 
 
 # TODO: add unit tests
@@ -48,14 +34,30 @@ def setDirectionMiddleware(context: Context) -> Context:
     return context
 
 
-# Código original:
-# `setHandleLootMiddleware` selecionava a aba Loot, chamava `hasNewLoot()` e
-# associava mensagens do chat ao último alvo ou a mortes inferidas por spells.
-# A cópia integral está preservada em
-# `docs/historico-looting/chat-loot-detector.py.txt` e no histórico Git.
-
-
-def setTargetCreatureHistoryMiddleware(context: Context) -> Context:
+# TODO: add unit tests
+def setHandleLootMiddleware(context: Context) -> Context:
+    currentTaskName = context['tasksOrchestrator'].getCurrentTaskName(context)
+    if (currentTaskName not in ['depositGold', 'refill', 'selectChatTab']):
+        lootTab = context['chat']['tabs'].get('loot')
+        if lootTab is not None and not lootTab['isSelected']:
+            context['tasksOrchestrator'].setRootTask(
+                context, SelectChatTabTask('loot'))
+    if hasNewLoot(context['screenshot']):
+        if context['cavebot']['previousTargetCreature'] is not None:
+            context['loot']['corpsesToLoot'].append(
+                context['cavebot']['previousTargetCreature'])
+            context['cavebot']['previousTargetCreature'] = None
+        # has spelled exori category
+        if context['comboSpells']['lastUsedSpell'] is not None and context['comboSpells']['lastUsedSpell'] in ['exori', 'exori gran', 'exori mas']:
+            spellPath = spellsPath.get(
+                context['comboSpells']['lastUsedSpell'], [])
+            if len(spellPath) > 0:
+                differentCreatures = getDifferentCreaturesBySlots(
+                    context['gameWindow']['previousMonsters'], context['gameWindow']['monsters'], spellPath)
+                for creature in differentCreatures:
+                    context['loot']['corpsesToLoot'].append(creature)
+            context['comboSpells']['lastUsedSpell'] = None
+            context['comboSpells']['lastUsedSpellAt'] = None
     context['cavebot']['targetCreature'] = getTargetCreature(
         context['gameWindow']['monsters'])
     if context['cavebot']['targetCreature'] is not None:
@@ -70,7 +72,6 @@ def setGameWindowMiddleware(context: Context) -> Context:
     if context['gameWindow']['coordinate'] is None:
         context['gameWindow']['image'] = None
         return context
-    # Código original:
     context['gameWindow']['image'] = getImageByCoordinate(
         context['screenshot'], context['gameWindow']['coordinate'], gameWindowSizes[context['resolution']])
     return context
@@ -78,34 +79,19 @@ def setGameWindowMiddleware(context: Context) -> Context:
 
 # TODO: add unit tests
 def setGameWindowCreaturesMiddleware(context: Context) -> Context:
-    # Código Linux anterior:
-    # if context['gameWindow']['coordinate'] is None or context['radar']['coordinate'] is None or context['gameWindow']['image'] is None:
-    #     context['gameWindow']['creatures'] = []
-    #     context['gameWindow']['monsters'] = []
-    #     context['gameWindow']['players'] = []
-    #     return context
     if (
         context['gameWindow']['coordinate'] is None
         or context['gameWindow']['image'] is None
-        or (
-            context['radar']['coordinate'] is None
-            and not canUseVisualTargetingWithoutRadar(context)
-        )
+        or context['radar']['coordinate'] is None
     ):
         context['gameWindow']['creatures'] = []
         context['gameWindow']['monsters'] = []
         context['gameWindow']['players'] = []
         return context
-    creatureBaseCoordinate = (
-        context['radar']['coordinate']
-        if context['radar']['coordinate'] is not None
-        else VISUAL_TARGETING_FALLBACK_COORDINATE
-    )
-    # Código original:
     context['battleList']['beingAttackedCreatureCategory'] = getBeingAttackedCreatureCategory(
         context['battleList']['creatures'])
     context['gameWindow']['creatures'] = getCreatures(
-        context['battleList']['creatures'], context['comingFromDirection'], context['gameWindow']['coordinate'], context['gameWindow']['image'], creatureBaseCoordinate, beingAttackedCreatureCategory=context['battleList']['beingAttackedCreatureCategory'], walkedPixelsInSqm=context['gameWindow']['walkedPixelsInSqm'])
+        context['battleList']['creatures'], context['comingFromDirection'], context['gameWindow']['coordinate'], context['gameWindow']['image'], context['radar']['coordinate'], beingAttackedCreatureCategory=context['battleList']['beingAttackedCreatureCategory'], walkedPixelsInSqm=context['gameWindow']['walkedPixelsInSqm'])
     if len(context['gameWindow']['creatures']) == 0:
         context['gameWindow']['monsters'] = []
         context['gameWindow']['players'] = []

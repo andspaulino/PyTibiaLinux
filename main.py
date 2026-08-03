@@ -2,18 +2,25 @@ import argparse
 
 from src.gameplay.context import context
 from src.gameplay.threads.pyTibia import PyTibiaThread
-from src.gameplay.threads.ui import UIThread
+# Código original:
+# from src.gameplay.threads.ui import UIThread
 from src.ui.context import Context
 
 
+# Código original:
+# def main():
+#     contextInstance = Context(context)
+#     uiThreadInstance = UIThread(contextInstance)
+#     uiThreadInstance.start()
+#     pyTibiaThreadInstance = PyTibiaThread(contextInstance)
+#     pyTibiaThreadInstance.mainloop()
 def main(uiEnabled=True):
     contextInstance = Context(context)
     uiThreadInstance = None
     if uiEnabled:
+        from src.gameplay.threads.ui import UIThread
         uiThreadInstance = UIThread(contextInstance)
         uiThreadInstance.start()
-    # Código Linux anterior:
-    # pyTibiaThreadInstance = PyTibiaThread(contextInstance)
     pyTibiaThreadInstance = PyTibiaThread(
         contextInstance,
         uiEnabled=uiEnabled,

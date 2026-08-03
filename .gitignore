@@ -27,6 +27,3 @@ var/
 .idea/
 .vscode/
 venv
-
-# Generated diagnostic/build staging
-/tools/output/

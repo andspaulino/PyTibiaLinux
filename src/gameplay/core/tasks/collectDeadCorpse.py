@@ -1,6 +1,7 @@
 from src.gameplay.typings import Context
 import src.gameplay.utils as gameplayUtils
-import src.repositories.gameWindow.slot as gameWindowSlot
+# Código original:
+# import src.repositories.gameWindow.slot as gameWindowSlot
 from src.repositories.gameWindow.typings import Creature
 import src.utils.keyboard as utilsKeyboard
 from ...typings import Context
@@ -16,26 +17,36 @@ class CollectDeadCorpseTask(BaseTask):
         self.creature = creature
 
     def do(self, context: Context) -> Context:
-        utilsKeyboard.keyDown('shift')
-        gameWindowSlot.rightClickSlot(
-            [6, 4], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [7, 4], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [8, 4], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [6, 5], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [7, 5], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [8, 5], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [6, 6], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [7, 6], context['gameWindow']['coordinate'])
-        gameWindowSlot.rightClickSlot(
-            [8, 6], context['gameWindow']['coordinate'])
-        utilsKeyboard.keyUp('shift')
+        # Código original:
+        # utilsKeyboard.keyDown('shift')
+        # gameWindowSlot.rightClickSlot(
+        #     [6, 4], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [7, 4], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [8, 4], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [6, 5], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [7, 5], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [8, 5], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [6, 6], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [7, 6], context['gameWindow']['coordinate'])
+        # gameWindowSlot.rightClickSlot(
+        #     [8, 6], context['gameWindow']['coordinate'])
+        # utilsKeyboard.keyUp('shift')
+        hotkey = context['loot'].get('quickLootHotkey', 'alt+q')
+        keys = tuple(
+            key.strip()
+            for key in hotkey.split('+')
+            if key.strip()
+        )
+        if len(keys) == 0:
+            return context
+        utilsKeyboard.hotkey(*keys)
         return context
 
     def onComplete(self, context: Context) -> Context:

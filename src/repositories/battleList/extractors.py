@@ -30,4 +30,3 @@ def getCreaturesNamesImages(content: GrayImage, filledSlotsCount: int) -> GrayIm
             if creatureNameImage[j] == 192 or creatureNameImage[j] == 247:
                 creaturesNamesImages[i, j] = 192
     return creaturesNamesImages
-

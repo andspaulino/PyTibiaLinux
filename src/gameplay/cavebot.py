@@ -10,14 +10,8 @@ def resolveCavebotTasks(context: Context) -> Union[AttackClosestCreatureTask, No
     if context['cavebot']['isAttackingSomeCreature']:
         if context['cavebot']['targetCreature'] is None:
             return context
-        radarCoordinate = context['radar']['coordinate']
-        # Código original:
-        # if hasTargetToCreature(
-        #         context['gameWindow']['monsters'], context['cavebot']['targetCreature'], context['radar']['coordinate']) == False:
-        # Adaptação defensiva Linux: sem Radar, preserva o alvo visual atual e
-        # deixa WalkToTargetCreature bloquear somente a navegação.
-        if radarCoordinate is not None and hasTargetToCreature(
-                context['gameWindow']['monsters'], context['cavebot']['targetCreature'], radarCoordinate) == False:
+        if hasTargetToCreature(
+                context['gameWindow']['monsters'], context['cavebot']['targetCreature'], context['radar']['coordinate']) == False:
             if context['cavebot']['closestCreature'] is None:
                 return context
             context['tasksOrchestrator'].setRootTask(

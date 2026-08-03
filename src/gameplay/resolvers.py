@@ -9,8 +9,6 @@ from .core.tasks.logout import LogoutTask
 from .core.tasks.refill import RefillTask
 from .core.tasks.refillChecker import RefillCheckerTask
 from .core.tasks.singleWalk import SingleWalkTask
-from .core.tasks.useHole import UseHoleTask
-from .core.tasks.useHoleWaypoint import UseHoleWaypointTask
 from .core.tasks.useRopeWaypoint import UseRopeWaypointTask
 from .core.tasks.useShovelWaypoint import UseShovelWaypointTask
 from .core.tasks.useTeleportWaypoint import UseTeleportWaypointTask
@@ -35,11 +33,6 @@ def resolveTasksByWaypoint(waypoint: Waypoint) -> Union[BaseTask, VectorTask]:
         return RefillTask(waypoint)
     elif waypoint['type'] == 'refillChecker':
         return RefillCheckerTask(waypoint)
-    # Código original mantido comentado:
-    # elif waypoint['type'] == 'useHole':
-    #     return UseHoleTask(waypoint)
-    elif waypoint['type'] == 'useHole':
-        return UseHoleWaypointTask(waypoint)
     elif waypoint['type'] == 'useRope':
         return UseRopeWaypointTask(waypoint)
     elif waypoint['type'] == 'useShovel':

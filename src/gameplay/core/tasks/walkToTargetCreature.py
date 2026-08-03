@@ -32,6 +32,8 @@ class WalkToTargetCreatureTask(VectorTask):
 
     # TODO: if there are no more creatures, it should only recalculate when it gets close to the creature to avoid recalculating each SQM move
     def shouldRestart(self, context: Context) -> bool:
+        if context['radar']['coordinate'] is None:
+            return False
         if len(self.tasks) == 0:
             return True
         if context['cavebot']['targetCreature'] is None:
@@ -47,8 +49,8 @@ class WalkToTargetCreatureTask(VectorTask):
         self.tasks = []
         if context['cavebot']['targetCreature'] is None:
             return
-        # Adaptação defensiva Linux: a leitura do Radar pode desaparecer
-        # temporariamente; sem coordenada mundial nenhuma navegação é emitida.
+        # Guarda defensiva Linux: a perda transitória do Radar bloqueia apenas
+        # a navegação; nenhuma coordenada mundial é inventada.
         if context['radar']['coordinate'] is None:
             return
         nonWalkableCoordinates = context['cavebot']['holesOrStairs'].copy()

@@ -13,15 +13,7 @@ class WalkToWaypointTask(VectorTask):
         self.isRootTask = True
         self.coordinate = coordinate
 
-    # Código original mantido comentado:
-    # def onBeforeStart(self, context: Context) -> Context:
-    #     self.tasks = [
-    #         WalkToCoordinateTask(self.coordinate).setParentTask(self).setRootTask(self),
-    #         SetNextWaypointTask().setParentTask(self).setRootTask(self),
-    #     ]
-    #     return context
     def onBeforeStart(self, context: Context) -> Context:
-        print(f"[WalkToWaypoint] Iniciando tarefa de caminhada para a coordenada {self.coordinate}")
         self.tasks = [
             WalkToCoordinateTask(self.coordinate).setParentTask(self).setRootTask(self),
             SetNextWaypointTask().setParentTask(self).setRootTask(self),

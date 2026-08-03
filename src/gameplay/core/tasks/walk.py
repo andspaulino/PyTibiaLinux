@@ -1,5 +1,4 @@
 import src.gameplay.utils as gameplayUtils
-from src.gameplay.navigation import addTransientBlockedCoordinate
 from src.repositories.radar.core import getBreakpointTileMovementSpeed, getTileFrictionByCoordinate
 from src.repositories.skills.core import getSpeed
 from src.shared.typings import Coordinate
@@ -24,41 +23,20 @@ class WalkTask(BaseTask):
 
     # TODO: add unit tests
     def shouldIgnore(self, context: Context) -> bool:
-        # Código original:
-        # if context['radar']['lastCoordinateVisited'] is None:
-        #     return True
-        # return not gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], context['radar']['lastCoordinateVisited'])
         if context['radar']['coordinate'] is None:
             return False
         if context['radar']['lastCoordinateVisited'] is None:
             return True
-        return not gameplayUtils.coordinatesAreEqual(
-            context['radar']['coordinate'],
-            context['radar']['lastCoordinateVisited'],
-        )
+        return not gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], context['radar']['lastCoordinateVisited'])
 
     # TODO: add unit tests
     def do(self, context: Context) -> bool:
-        # Código original:
-        # direction = getDirectionBetweenCoordinates(
-        #     context['radar']['coordinate'], self.walkpoint)
-        # if direction is None:
-        #     return context
         if context['radar']['coordinate'] is None:
-            navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-            navigation['status'] = 'blocked'
-            navigation['failureReason'] = 'coordinate-unavailable'
-            navigation['plannedDirection'] = None
             return releaseKeys(context)
         direction = getDirectionBetweenCoordinates(
             context['radar']['coordinate'], self.walkpoint)
         if direction is None:
-            navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-            navigation['plannedDirection'] = None
             return context
-        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-        navigation['plannedDirection'] = direction
-        navigation['nextWalkpoint'] = self.walkpoint
         futureDirection = None
         if self.parentTask and len(self.parentTask.tasks) > 1:
             if self.parentTask.currentTaskIndex + 1 < len(self.parentTask.tasks):
@@ -81,46 +59,16 @@ class WalkTask(BaseTask):
             context = releaseKeys(context)
         return context
 
-    def ping(self, context: Context) -> Context:
-        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-        if context['radar']['coordinate'] is None:
-            navigation['status'] = 'radar-unavailable'
-            navigation['failureReason'] = 'coordinate-unavailable'
-            navigation['plannedDirection'] = None
-            return releaseKeys(context)
-        if navigation.get('status') == 'radar-unavailable':
-            navigation['status'] = 'walking'
-            navigation['failureReason'] = None
-            return self.do(context)
-        return context
-
     # TODO: add unit tests
     def did(self, context: Context) -> bool:
-        # Código original:
-        # return gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], self.walkpoint)
         if context['radar']['coordinate'] is None:
             return False
-        return gameplayUtils.coordinatesAreEqual(
-            context['radar']['coordinate'], self.walkpoint
-        )
+        return gameplayUtils.coordinatesAreEqual(context['radar']['coordinate'], self.walkpoint)
 
     # TODO: add unit tests
     def onInterrupt(self, context: Context) -> Context:
-        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-        navigation['plannedDirection'] = None
         return releaseKeys(context)
 
     # TODO: add unit tests
     def onTimeout(self, context: Context) -> Context:
-        navigation = context.setdefault('cavebot', {}).setdefault('navigation', {})
-        # Código Linux anterior:
-        # navigation['status'] = 'blocked'
-        # navigation['failureReason'] = 'movement-timeout'
-        # navigation['plannedDirection'] = None
-        # return releaseKeys(context)
-        addTransientBlockedCoordinate(context, self.walkpoint)
-        navigation['status'] = 'blocked'
-        navigation['failureReason'] = 'movement-timeout'
-        navigation['plannedDirection'] = None
-        navigation['timedOutCoordinate'] = self.walkpoint
         return releaseKeys(context)

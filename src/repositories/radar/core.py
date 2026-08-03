@@ -99,6 +99,8 @@ def getFloorLevel(screenshot: GrayImage) -> FloorLevel | None:
 # TODO: add unit tests
 # TODO: add perf
 def getClosestWaypointIndexFromCoordinate(coordinate: Coordinate, waypoints: WaypointList) -> Union[int, None]:
+    # Guarda defensiva Linux: o reconhecimento do Radar pode falhar
+    # temporariamente e não deve produzir uma coordenada sintética.
     if coordinate is None or waypoints is None or len(waypoints) == 0:
         return None
     closestWaypointIndex = None
