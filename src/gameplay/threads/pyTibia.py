@@ -102,6 +102,18 @@ class PyTibiaThread:
         rootName = rootTask.name if rootTask is not None else None
         taskName = currentTask.name if currentTask is not None else None
 
+        navigationTask = currentTask
+        while (
+            navigationTask is not None
+            and not hasattr(navigationTask, 'navigationState')
+        ):
+            navigationTask = navigationTask.parentTask
+        navigationState = (
+            navigationTask.navigationState
+            if navigationTask is not None
+            else None
+        )
+
         coordinate = context.get('radar', {}).get('coordinate')
         coordinateSignature = (
             tuple(coordinate) if coordinate is not None else None
@@ -146,6 +158,7 @@ class PyTibiaThread:
             coordinateSignature,
             rootName,
             taskName,
+            navigationState,
             waypointIndex,
             waypointLabel,
             waypointType,
@@ -164,6 +177,7 @@ class PyTibiaThread:
             '[MainDiag] '
             f'coordinate={coordinateSignature} '
             f'root={rootName} task={taskName} '
+            f'navigation={navigationState} '
             f'waypointIndex={waypointIndex} '
             f'waypoint={waypointLabel}:{waypointType}:{waypointCoordinateSignature} '
             f'attacking={isAttacking} '
