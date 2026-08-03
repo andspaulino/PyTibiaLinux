@@ -35,4 +35,10 @@ def shouldAskForCavebotTasks(context: Context) -> bool:
     currentTask = context['tasksOrchestrator'].getCurrentTask(context)
     if currentTask is None:
         return True
+    if (
+        currentTask.name == 'setNextWaypoint'
+        and currentTask.rootTask is not None
+        and currentTask.rootTask.name == 'singleWalk'
+    ):
+        return False
     return (currentTask.name not in ['dropFlasks', 'lootCorpse', 'moveDown', 'moveUp', 'refillChecker', 'singleWalk', 'refillChecker', 'useRopeWaypoint', 'useTeleportWaypoint', 'useShovelWaypoint'])

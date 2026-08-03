@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 1,
+  "name": "wasp-ab",
+  "waypoints": [
+    {
+      "label": "walk001",
+      "type": "walk",
+      "coordinate": [
+        32609,
+        31703,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk002",
+      "type": "walk",
+      "coordinate": [
+        32615,
+        31700,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "moveDown001",
+      "type": "moveDown",
+      "coordinate": [
+        32616,
+        31700,
+        8
+      ],
+      "options": {
+        "direction": "east"
+      }
+    },
+    {
+      "label": "walk003",
+      "type": "walk",
+      "coordinate": [
+        32614,
+        31693,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk004",
+      "type": "walk",
+      "coordinate": [
+        32612,
+        31684,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "moveDown002",
+      "type": "moveDown",
+      "coordinate": [
+        32612,
+        31683,
+        9
+      ],
+      "options": {
+        "direction": "north"
+      }
+    },
+    {
+      "label": "walk005",
+      "type": "walk",
+      "coordinate": [
+        32614,
+        31690,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk006",
+      "type": "walk",
+      "coordinate": [
+        32616,
+        31699,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk007",
+      "type": "walk",
+      "coordinate": [
+        32625,
+        31707,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk008",
+      "type": "walk",
+      "coordinate": [
+        32632,
+        31697,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk009",
+      "type": "walk",
+      "coordinate": [
+        32626,
+        31690,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk010",
+      "type": "walk",
+      "coordinate": [
+        32612,
+        31684,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "useRope001",
+      "type": "useRope",
+      "coordinate": [
+        32612,
+        31683,
+        10
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk011",
+      "type": "walk",
+      "coordinate": [
+        32605,
+        31691,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk012",
+      "type": "walk",
+      "coordinate": [
+        32602,
+        31701,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk013",
+      "type": "walk",
+      "coordinate": [
+        32609,
+        31704,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk014",
+      "type": "walk",
+      "coordinate": [
+        32617,
+        31705,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk015",
+      "type": "walk",
+      "coordinate": [
+        32627,
+        31708,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk016",
+      "type": "walk",
+      "coordinate": [
+        32635,
+        31709,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk017",
+      "type": "walk",
+      "coordinate": [
+        32642,
+        31696,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk018",
+      "type": "walk",
+      "coordinate": [
+        32637,
+        31686,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk019",
+      "type": "walk",
+      "coordinate": [
+        32632,
+        31681,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk020",
+      "type": "walk",
+      "coordinate": [
+        32622,
+        31690,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "useRope002",
+      "type": "useRope",
+      "coordinate": [
+        32622,
+        31691,
+        9
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk021",
+      "type": "walk",
+      "coordinate": [
+        32617,
+        31695,
+        8
+      ],
+      "options": {}
+    },
+    {
+      "label": "walk022",
+      "type": "walk",
+      "coordinate": [
+        32612,
+        31702,
+        8
+      ],
+      "options": {}
+    }
+  ]
+}
