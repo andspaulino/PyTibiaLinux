@@ -39,25 +39,63 @@ class QuickLootNearbyCorpsesTask(BaseTask):
         # o input iniciava confirmação por Loot Highlighting, registrava slots,
         # contava ausência e podia agendar até dois retries. A implementação
         # integral está em `docs/historico-looting/loot-highlighting-middleware.py.txt`.
-        printLootDiagnostic(
-            'quick_loot_send',
-            context,
-            hotkey=hotkey,
-        )
-        utilsKeyboard.hotkey(*keys)
+
+        # Código original (envio único sem confirmação):
+        # utilsKeyboard.hotkey(*keys)
+        # now = time()
+        # corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        # playerCoordinate = context.get('radar', {}).get('coordinate')
+        # removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
+
         now = time()
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
         playerCoordinate = context.get('radar', {}).get('coordinate')
-        removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
+
+        # Código Linux anterior:
+        # mesmo quando a aproximação havia falhado, a task enviava dois Alt+Q
+        # fora do alcance antes de descartar o cadáver selecionado.
         if self.discardSelectedCorpse and self.selectedCorpseCoordinate is not None:
-            # Código Linux anterior:
-            # from ...loot import discardCorpseByCoordinate
             discardCorpseByCoordinate(
                 corpsesToLoot,
                 self.selectedCorpseCoordinate,
                 context=context,
                 reason='approach-failed',
             )
+            lootState['pending'] = len(corpsesToLoot) > 0
+            lootState['detectedAt'] = (
+                lootState.get('detectedAt')
+                if lootState['pending']
+                else None
+            )
+            return context
+
+        printLootDiagnostic(
+            'quick_loot_send',
+            context,
+            hotkey=hotkey,
+        )
+        utilsKeyboard.hotkey(*keys)
+
+        # Código Linux anterior:
+        # eram enviados dois pulsos, separados por 0,15 s, usando lootAttempts
+        # persistido no cadáver. O cliente atual confirmou que um único Alt+Q
+        # é suficiente para toda a área 3×3.
+        # if self.selectedCorpseCoordinate is not None:
+        #     normSelected = normalizeCoordinate(self.selectedCorpseCoordinate)
+        #     for corpse in corpsesToLoot:
+        #         if (
+        #             isinstance(corpse, dict)
+        #             and normalizeCoordinate(corpse.get('coordinate'))
+        #             == normSelected
+        #         ):
+        #             attempts = corpse.get('lootAttempts', 0) + 1
+        #             corpse['lootAttempts'] = attempts
+        #             if attempts < 2:
+        #                 lootState['quickLootCooldownUntil'] = now + 0.15
+        #                 return context
+        #             break
+
+        removeCorpsesInQuickLootRange(corpsesToLoot, playerCoordinate)
         lootState['pending'] = len(corpsesToLoot) > 0
         lootState['detectedAt'] = (
             lootState.get('detectedAt')

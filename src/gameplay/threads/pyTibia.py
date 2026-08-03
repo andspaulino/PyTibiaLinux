@@ -15,6 +15,7 @@ from src.gameplay.core.middlewares.screenshot import setScreenshotMiddleware
 from src.gameplay.core.middlewares.tasks import setCleanUpTasksMiddleware
 # Código original:
 # from src.gameplay.core.tasks.lootCorpse import LootCorpseTask
+from src.gameplay.core.tasks.common.base import BaseTask
 from src.gameplay.core.tasks.quickLootNearbyCorpses import QuickLootNearbyCorpsesTask
 from src.gameplay.core.tasks.walkToCorpse import WalkToCorpseTask
 from src.gameplay.resolvers import resolveTasksByWaypoint
@@ -26,6 +27,7 @@ from src.gameplay.healing.observers.swapRing import swapRing
 from src.gameplay.loot import (
     getClosestQuickLootCoordinate,
     isCoordinateInQuickLootRange,
+    markCorpseAsProcessing,
     removeExpiredCorpses,
 )
 from src.gameplay.lootDiagnostics import printLootDiagnostic
@@ -35,6 +37,21 @@ from src.repositories.gameWindow.creatures import getClosestCreature
 
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0
+
+QUICK_LOOT_STABILIZATION_DELAY = 0.15
+
+
+def _getCurrentRootTask(context, currentTask):
+    orchestratorRoot = getattr(
+        context.get('tasksOrchestrator'),
+        'rootTask',
+        None,
+    )
+    if isinstance(orchestratorRoot, BaseTask):
+        return orchestratorRoot
+    if currentTask is None:
+        return None
+    return currentTask.rootTask or currentTask
 
 
 class PyTibiaThread:
@@ -221,8 +238,28 @@ class PyTibiaThread:
         )
 
         corpsesToLoot = lootState.setdefault('corpsesToLoot', [])
+        currentRootTask = _getCurrentRootTask(context, currentTask)
+        protectedCorpseCoordinate = None
+        if currentRootTask is not None:
+            if currentRootTask.name == 'lootCorpse':
+                rootCorpse = getattr(currentRootTask, 'corpse', None)
+                protectedCorpseCoordinate = (
+                    rootCorpse.get('coordinate')
+                    if isinstance(rootCorpse, dict)
+                    else None
+                )
+            elif currentRootTask.name == 'quickLootNearbyCorpses':
+                protectedCorpseCoordinate = getattr(
+                    currentRootTask,
+                    'selectedCorpseCoordinate',
+                    None,
+                )
         hadCorpses = len(corpsesToLoot) > 0
-        removeExpiredCorpses(corpsesToLoot, context)
+        removeExpiredCorpses(
+            corpsesToLoot,
+            context,
+            protectedCoordinate=protectedCorpseCoordinate,
+        )
         if hadCorpses and len(corpsesToLoot) == 0:
             lootState['pending'] = False
 
@@ -233,11 +270,7 @@ class PyTibiaThread:
 
         if quickLootPending and len(corpsesToLoot) > 0:
             context['way'] = 'lootCorpses'
-            currentRootTask = (
-                currentTask.rootTask
-                if currentTask is not None and currentTask.rootTask is not None
-                else currentTask
-            )
+            currentRootTask = _getCurrentRootTask(context, currentTask)
             if (
                 currentRootTask is not None
                 and currentRootTask.name == 'lootCorpse'
@@ -261,21 +294,59 @@ class PyTibiaThread:
                 return context
 
             selectedCorpse = corpsesToLoot[0]
+            markCorpseAsProcessing(selectedCorpse)
             selectedCorpseCoordinate = selectedCorpse.get('coordinate')
             playerCoordinate = context.get('radar', {}).get('coordinate')
 
             if playerCoordinate is None:
                 radarMissingCount = selectedCorpse.get('radarMissingCount', 0) + 1
                 selectedCorpse['radarMissingCount'] = radarMissingCount
-                shouldDiscard = (radarMissingCount >= 3)
+                # Código Linux anterior:
+                # nextLootTask = QuickLootNearbyCorpsesTask(
+                #     selectedCorpseCoordinate,
+                #     discardSelectedCorpse=(radarMissingCount >= 3),
+                # )
+                # Sem Radar, o hotkey podia ser enviado mais de uma vez na
+                # posição errada. As duas primeiras leituras agora apenas
+                # aguardam; a terceira descarta com segurança e sem input.
+                if radarMissingCount < 3:
+                    context['gameWindow']['previousMonsters'] = (
+                        context['gameWindow']['monsters']
+                    )
+                    return context
                 nextLootTask = QuickLootNearbyCorpsesTask(
                     selectedCorpseCoordinate,
-                    discardSelectedCorpse=shouldDiscard,
+                    discardSelectedCorpse=True,
                 )
             elif isCoordinateInQuickLootRange(
                 playerCoordinate,
                 selectedCorpseCoordinate,
             ):
+                quickLootReadyAt = selectedCorpse.get('quickLootReadyAt')
+                if quickLootReadyAt is None:
+                    selectedCorpse['quickLootReadyAt'] = (
+                        now + QUICK_LOOT_STABILIZATION_DELAY
+                    )
+                    printLootDiagnostic(
+                        'corpse_stabilizing',
+                        context,
+                        corpseCoordinate=selectedCorpseCoordinate,
+                        readyAt=selectedCorpse['quickLootReadyAt'],
+                    )
+                    if currentRootTask is not None:
+                        context['tasksOrchestrator'].setRootTask(
+                            context,
+                            None,
+                        )
+                    context['gameWindow']['previousMonsters'] = (
+                        context['gameWindow']['monsters']
+                    )
+                    return context
+                if now < quickLootReadyAt:
+                    context['gameWindow']['previousMonsters'] = (
+                        context['gameWindow']['monsters']
+                    )
+                    return context
                 nextLootTask = QuickLootNearbyCorpsesTask(
                     selectedCorpseCoordinate,
                     discardSelectedCorpse=False,
@@ -286,6 +357,7 @@ class PyTibiaThread:
                     discardSelectedCorpse=True,
                 )
             else:
+                selectedCorpse.pop('quickLootReadyAt', None)
                 approachCoordinate = getClosestQuickLootCoordinate(
                     playerCoordinate,
                     selectedCorpseCoordinate,

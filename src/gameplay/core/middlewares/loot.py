@@ -18,6 +18,42 @@ QUICK_LOOT_NEARBY_SLOTS = {
 }
 
 
+def isTargetCreatureStillAlive(context: Context) -> bool:
+    target = (
+        context.get('cavebot', {}).get('targetCreature')
+        or context.get('cavebot', {}).get('previousTargetCreature')
+    )
+    if not target or not isinstance(target, dict):
+        return False
+    targetCoord = target.get('coordinate')
+    targetName = target.get('name')
+    if targetName == 'Unknown':
+        targetName = None
+
+    monsters = context.get('gameWindow', {}).get('monsters', [])
+    for monster in monsters:
+        if not isinstance(monster, dict):
+            continue
+        mCoord = monster.get('coordinate')
+        if (
+            targetCoord is not None
+            and mCoord is not None
+            and len(mCoord) == 3
+            and len(targetCoord) == 3
+            and mCoord[0] == targetCoord[0]
+            and mCoord[1] == targetCoord[1]
+            and mCoord[2] == targetCoord[2]
+        ):
+            return True
+
+    # Código Linux anterior:
+    # qualquer criatura homônima na Battle List, ou a até dois SQMs da última
+    # coordenada, era aceita como o mesmo alvo e podia ocultar uma morte real.
+    # Sem um identificador estável por criatura, somente a coordenada mundial
+    # exata é evidência segura de que o alvo específico continua presente.
+    return False
+
+
 # Código Linux anterior:
 # a morte era inferida quando `previousTargetCreature` desaparecia entre dois
 # frames da Game Window. O snapshot está preservado em
@@ -61,25 +97,48 @@ def setLootChatMiddleware(context: Context) -> Context:
         return context
 
     now = time()
+
+    # Código original Windows / Linux anterior:
+    # if lootState['wasAttacking'] and not isAttacking:
+    #     lootState['movementBlockedUntil'] = max(
+    #         lootState['movementBlockedUntil'],
+    #         now + POST_COMBAT_LOOT_DELAY,
+    #     )
+    #     lootState['lastCombatEndedCreature'] = (
+    #         context.get('cavebot', {}).get('targetCreature')
+    #         or context.get('cavebot', {}).get('previousTargetCreature')
+    #     )
+    #     printLootDiagnostic(...)
+
+    # Adaptação Linux: Se a criatura-alvo continua viva/presente no jogo, ignora o flicker
+    # de 1 frame do indicador de ataque para não pausar o movimento por 850ms nem resetar o ataque.
     if lootState['wasAttacking'] and not isAttacking:
-        lootState['movementBlockedUntil'] = max(
-            lootState['movementBlockedUntil'],
-            now + POST_COMBAT_LOOT_DELAY,
-        )
-        lootState['lastCombatEndedCreature'] = (
-            context.get('cavebot', {}).get('targetCreature')
-            or context.get('cavebot', {}).get('previousTargetCreature')
-        )
-        printLootDiagnostic(
-            'combat_end',
-            context,
-            adjacentMonster=hasAdjacentMonster(context),
-            corpseCandidateCoordinate=(
-                lootState['lastCombatEndedCreature'].get('coordinate')
-                if isinstance(lootState['lastCombatEndedCreature'], dict)
-                else None
-            ),
-        )
+        if isTargetCreatureStillAlive(context):
+            # Código Linux anterior:
+            # lootState['wasAttacking'] = True
+            # return context
+            # Continua até a leitura do chat: uma linha Loot of é autoridade
+            # suficiente para confirmar uma morte mesmo durante um flicker.
+            isAttacking = True
+        else:
+            lootState['movementBlockedUntil'] = max(
+                lootState['movementBlockedUntil'],
+                now + POST_COMBAT_LOOT_DELAY,
+            )
+            lootState['lastCombatEndedCreature'] = (
+                context.get('cavebot', {}).get('targetCreature')
+                or context.get('cavebot', {}).get('previousTargetCreature')
+            )
+            printLootDiagnostic(
+                'combat_end',
+                context,
+                adjacentMonster=hasAdjacentMonster(context),
+                corpseCandidateCoordinate=(
+                    lootState['lastCombatEndedCreature'].get('coordinate')
+                    if isinstance(lootState['lastCombatEndedCreature'], dict)
+                    else None
+                ),
+            )
     lootState['wasAttacking'] = isAttacking
 
     if not lootState['chatMonitoringEnabled']:
@@ -123,6 +182,20 @@ def setLootChatMiddleware(context: Context) -> Context:
         lootState['lastCombatEndedCreature'] = None
         if addedCorpse:
             context['cavebot']['previousTargetCreature'] = None
+        hasTrackedCorpse = len(lootState['corpsesToLoot']) > 0
+        # Código Linux anterior:
+        # lootState['pending'] = True
+        # Mesmo sem candidato ou cadáver na fila, um retrigger visual marcava
+        # pending e enviava Alt+Q durante o waypoint.
+        if not hasTrackedCorpse:
+            printLootDiagnostic(
+                'loot_ignored',
+                context,
+                reason='no-corpse-candidate',
+                corpseQueued=False,
+                corpseQueueSize=0,
+            )
+            return context
         lootState['pending'] = True
         lootState['detectedAt'] = now
         print('[Loot] Nova linha Loot of detectada')
