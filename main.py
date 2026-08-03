@@ -1,4 +1,5 @@
 import argparse
+from threading import Thread
 
 from src.gameplay.context import context
 from src.gameplay.threads.pyTibia import PyTibiaThread
@@ -16,23 +17,39 @@ from src.ui.context import Context
 #     pyTibiaThreadInstance.mainloop()
 def main(uiEnabled=True):
     contextInstance = Context(context)
-    uiThreadInstance = None
-    if uiEnabled:
-        from src.gameplay.threads.ui import UIThread
-        uiThreadInstance = UIThread(contextInstance)
-        uiThreadInstance.start()
     pyTibiaThreadInstance = PyTibiaThread(
         contextInstance,
         uiEnabled=uiEnabled,
     )
+
+    if not uiEnabled:
+        try:
+            pyTibiaThreadInstance.mainloop()
+        finally:
+            contextInstance.context['shutdown'] = True
+            contextInstance.pause()
+        return
+
+    import tkinter as tk
+    from src.ui.application import Application
+
+    app = Application(contextInstance)
+    gameplayThread = Thread(
+        target=pyTibiaThreadInstance.mainloop,
+        name='PyTibiaGameplay',
+    )
+    gameplayThread.start()
     try:
-        pyTibiaThreadInstance.mainloop()
+        app.mainloop()
     finally:
         contextInstance.context['shutdown'] = True
         contextInstance.pause()
-        if uiThreadInstance is not None:
-            uiThreadInstance.requestClose()
-            uiThreadInstance.join()
+        try:
+            if app.winfo_exists():
+                app.destroy()
+        except tk.TclError:
+            pass
+        gameplayThread.join()
 
 
 if __name__ == '__main__':
