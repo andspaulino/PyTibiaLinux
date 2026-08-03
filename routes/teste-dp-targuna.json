@@ -55,8 +55,8 @@
       "options": {}
     },
     {
-      "label": "useHole001",
-      "type": "useHole",
+      "label": "useTeleport001",
+      "type": "useTeleport",
       "coordinate": [
         31951,
         31903,

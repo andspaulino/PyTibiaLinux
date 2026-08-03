@@ -6,7 +6,9 @@
         "backpacks": { "main": "Brocade Backpack", "loot": "Beach Backpack" },
         "cavebot": {
           "enabled": true,
-          "routeId": "lizards-targuna",
+          "routeId": "teste-buero-corda",
+          "ropeHotkey": "-",
+          "shovelHotkey": "=",
           "waypoints": {
             "items": [
               {

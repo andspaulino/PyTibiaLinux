@@ -21,7 +21,9 @@ class UseShovelTask(BaseTask):
     def do(self, context: Context) -> Context:
         slot = gameWindowCore.getSlotFromCoordinate(
             context['radar']['coordinate'], self.waypoint['coordinate'])
-        keyboard.press('p')
+        # Código original:
+        # keyboard.press('p')
+        keyboard.press(context['cavebot'].get('shovelHotkey', 'p'))
         gameWindowSlot.clickSlot(slot, context['gameWindow']['coordinate'])
         return context
 
