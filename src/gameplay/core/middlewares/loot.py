@@ -195,9 +195,14 @@ def setLootChatMiddleware(context: Context) -> Context:
             lootState.get('lastCombatEndedCreature')
             or context.get('cavebot', {}).get('previousTargetCreature')
         )
-        if isCreatureStillPresent(context, corpseCandidate):
+        # Código Linux anterior:
+        # if isCreatureStillPresent(context, corpseCandidate):
+        # Uma percepção visual atrasada, ou outro monstro homônimo ocupando o
+        # mesmo SQM, não pode invalidar uma morte já confirmada quando o estado
+        # de ataque terminou. A rejeição vale somente durante combate ativo.
+        if isAttacking and isCreatureStillPresent(context, corpseCandidate):
             # Uma linha visual antiga/retriggerada não pode transformar o alvo
-            # que ainda ocupa a mesma coordenada em um cadáver navegável.
+            # que ainda está sendo atacado na mesma coordenada em cadáver.
             lootState['lastCombatEndedCreature'] = None
             printLootDiagnostic(
                 'loot_ignored',

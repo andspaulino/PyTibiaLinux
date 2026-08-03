@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from src.gameplay.core.tasks import walkToTargetCreature as walk_task_module
 from src.gameplay.core.tasks.attackClosestCreature import AttackClosestCreatureTask
 from src.gameplay.core.tasks.clickInClosestCreature import ClickInClosestCreatureTask
@@ -45,36 +47,45 @@ def test_onBeforeStart_with_walking_to_target():
     assert task.manuallyTerminable is False
 
 
-def test_walkToTargetCreature_shouldRestart_tolerance():
+def test_walk_to_target_restarts_when_endpoint_no_longer_reaches_target():
     task = WalkToTargetCreatureTask()
-    # A target that appears after an unavailable frame starts path calculation.
-    assert task.shouldRestart({
-        'cavebot': {'targetCreature': {'coordinate': [10, 10, 7]}},
-    }) is True
-
-    # Simulate active tasks in progress.
-    task.tasks = ['mock_walk_task']
+    task.tasks = [SimpleNamespace(walkpoint=[9, 10, 7])]
     task.targetCreatureCoordinateSinceLastRestart = [10, 10, 7]
+    context = {
+        'cavebot': {'targetCreature': {'coordinate': [10, 12, 7]}},
+        'radar': {'coordinate': [5, 5, 7]},
+    }
 
-    # Grid shifts of up to 2 SQMs per axis do not restart.
-    ctx_1sqm = {
+    assert task.shouldRestart(context) is True
+
+
+def test_walk_to_target_keeps_path_when_endpoint_remains_adjacent():
+    task = WalkToTargetCreatureTask()
+    task.tasks = [SimpleNamespace(walkpoint=[9, 10, 7])]
+    task.targetCreatureCoordinateSinceLastRestart = [10, 10, 7]
+    context = {
         'cavebot': {'targetCreature': {'coordinate': [10, 11, 7]}},
+        'radar': {'coordinate': [5, 5, 7]},
     }
-    assert task.shouldRestart(ctx_1sqm) is False
-    ctx_1x2sqm = {
-        'cavebot': {'targetCreature': {'coordinate': [11, 12, 7]}},
-    }
-    assert task.shouldRestart(ctx_1x2sqm) is False
-    ctx_2x2sqm = {
-        'cavebot': {'targetCreature': {'coordinate': [12, 12, 7]}},
-    }
-    assert task.shouldRestart(ctx_2x2sqm) is False
 
-    # Target shift of > 2 SQMs on one axis -> SHOULD restart.
-    ctx_3sqm = {
-        'cavebot': {'targetCreature': {'coordinate': [10, 13, 7]}},
+    assert task.shouldRestart(context) is False
+
+
+def test_walk_to_target_restarts_with_completed_stale_children():
+    task = WalkToTargetCreatureTask()
+    task.tasks = [
+        SimpleNamespace(
+            walkpoint=[9, 10, 7],
+            status='completed',
+        ),
+    ]
+    task.targetCreatureCoordinateSinceLastRestart = [10, 10, 7]
+    context = {
+        'cavebot': {'targetCreature': {'coordinate': [10, 12, 7]}},
+        'radar': {'coordinate': [9, 10, 7]},
     }
-    assert task.shouldRestart(ctx_3sqm) is True
+
+    assert task.shouldRestart(context) is True
 
 
 def test_walk_to_target_keeps_current_path_when_target_is_temporarily_missing():

@@ -4,59 +4,33 @@ from .core.tasks.attackClosestCreature import AttackClosestCreatureTask
 from .typings import Context
 
 
-def canKeepVisualTargetWithoutRadar(context: Context) -> bool:
-    return (
-        context['radar']['coordinate'] is None
-        and context['targeting'].get('enabled', False)
-    )
-
-
 # TODO: add unit tests
-def resolveCavebotTasks(
-    context: Context,
-    allowChase: bool = False,
-) -> Union[AttackClosestCreatureTask, None]:
+def resolveCavebotTasks(context: Context) -> Union[AttackClosestCreatureTask, None]:
     currentTask = context['tasksOrchestrator'].getCurrentTask(context)
     if context['cavebot']['isAttackingSomeCreature']:
         if context['cavebot']['targetCreature'] is None:
             return context
+        radarCoordinate = context['radar']['coordinate']
         # Código original:
         # if hasTargetToCreature(
         #         context['gameWindow']['monsters'], context['cavebot']['targetCreature'], context['radar']['coordinate']) == False:
-        #     if context['cavebot']['closestCreature'] is None:
-        #         return context
-        #     context['tasksOrchestrator'].setRootTask(
-        #         context, AttackClosestCreatureTask())
-        #     return context
-        radarCoordinate = context['radar']['coordinate']
-        if radarCoordinate is None:
-            if not canKeepVisualTargetWithoutRadar(context):
-                return context
-        elif not hasTargetToCreature(
-            context['gameWindow']['monsters'],
-            context['cavebot']['targetCreature'],
-            radarCoordinate,
-        ):
+        # Adaptação defensiva Linux: sem Radar, preserva o alvo visual atual e
+        # deixa WalkToTargetCreature bloquear somente a navegação.
+        if radarCoordinate is not None and hasTargetToCreature(
+                context['gameWindow']['monsters'], context['cavebot']['targetCreature'], radarCoordinate) == False:
             if context['cavebot']['closestCreature'] is None:
                 return context
             context['tasksOrchestrator'].setRootTask(
-                context, AttackClosestCreatureTask(allowChase=allowChase))
+                context, AttackClosestCreatureTask())
             return context
-        currentRootTask = context['tasksOrchestrator'].rootTask
-        hasMatchingAttackRoot = (
-            currentTask is not None
-            and currentRootTask is not None
-            and currentRootTask.name == 'attackClosestCreature'
-            and getattr(currentRootTask, 'allowChase', False) == allowChase
-        )
-        if not hasMatchingAttackRoot:
+        if currentTask is None or context['tasksOrchestrator'].rootTask.name != 'attackClosestCreature':
             context['tasksOrchestrator'].setRootTask(
-                context, AttackClosestCreatureTask(allowChase=allowChase))
+                context, AttackClosestCreatureTask())
         return context
     if context['cavebot']['closestCreature'] is None:
         return context
     context['tasksOrchestrator'].setRootTask(
-        context, AttackClosestCreatureTask(allowChase=allowChase))
+        context, AttackClosestCreatureTask())
     return context
 
 

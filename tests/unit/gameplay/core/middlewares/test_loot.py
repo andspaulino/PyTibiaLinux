@@ -159,6 +159,33 @@ def test_loot_line_does_not_queue_candidate_that_is_still_alive(monkeypatch):
     assert result['loot']['corpsesToLoot'] == []
 
 
+def test_loot_line_queues_death_after_attack_ends_despite_stale_monster(
+    monkeypatch,
+):
+    deadTarget = {
+        'name': 'Swamp Troll',
+        'coordinate': [32921, 32209, 8],
+    }
+    context = make_context(monsters=[deadTarget])
+    context['cavebot']['isAttackingSomeCreature'] = False
+    context['cavebot']['previousTargetCreature'] = deadTarget
+    monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())
+    monkeypatch.setattr(
+        loot_middleware,
+        'hasNewLoot',
+        MagicMock(return_value=True),
+    )
+
+    result = loot_middleware.setLootChatMiddleware(context)
+
+    assert result['loot']['pending'] is True
+    assert result['loot']['corpsesToLoot'][0]['coordinate'] == [
+        32921,
+        32209,
+        8,
+    ]
+
+
 def test_retrigger_without_corpse_candidate_is_ignored(monkeypatch):
     context = make_context()
     monkeypatch.setattr(loot_middleware, 'resetLootBaseline', MagicMock())

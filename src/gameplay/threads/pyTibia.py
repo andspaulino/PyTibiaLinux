@@ -2,8 +2,7 @@ import pyautogui
 from contextlib import nullcontext
 from time import sleep, time
 import traceback
-# Código original:
-# from src.gameplay.cavebot import resolveCavebotTasks, shouldAskForCavebotTasks
+from src.gameplay.cavebot import resolveCavebotTasks, shouldAskForCavebotTasks
 from src.gameplay.combo import comboSpells
 from src.gameplay.core.middlewares.battleList import setBattleListMiddleware
 from src.gameplay.core.middlewares.chat import setChatTabsMiddleware
@@ -31,9 +30,8 @@ from src.gameplay.loot import (
     removeExpiredCorpses,
 )
 from src.gameplay.lootDiagnostics import printLootDiagnostic
-from src.gameplay.navigation import getActiveTransientBlockedCoordinates
-from src.gameplay.targeting import hasCreaturesToAttack, resolveTargetingTasks, shouldAskForTargetingTasks
-from src.repositories.gameWindow.creatures import getClosestCreature, getClosestReachableCreature
+from src.gameplay.targeting import hasCreaturesToAttack
+from src.repositories.gameWindow.creatures import getClosestCreature
 
 
 pyautogui.FAILSAFE = False
@@ -211,17 +209,9 @@ class PyTibiaThread:
                     continue
                 attackableMonsters.append(monster)
 
-        # Código Linux anterior: o Targeting era bloqueado sempre que o Radar
-        # não reconhecia a coordenada mundial, mesmo sem Cavebot/caminhada.
-        # if (
-        #     targetingEnabled
-        #     and context['radar']['coordinate'] is not None
-        #     and len(context['gameWindow']['monsters']) > 0
-        # ):
-        #     context['cavebot']['closestCreature'] = getClosestCreature(
-        #         context['gameWindow']['monsters'], context['radar']['coordinate'])
+        radarCoordinate = context['radar']['coordinate']
         canResolveClosestCreature = (
-            context['radar']['coordinate'] is not None
+            radarCoordinate is not None
             or canUseVisualTargetingWithoutRadar(context)
         )
         if (
@@ -230,34 +220,20 @@ class PyTibiaThread:
             and canResolveClosestCreature
             and len(attackableMonsters) > 0
         ):
-            radarCoordinate = context['radar']['coordinate']
-            if cavebotEnabled and radarCoordinate is not None:
-                # Código Linux anterior:
-                # context['cavebot']['closestCreature'] = getClosestCreature(
-                #     context['gameWindow']['monsters'], radarCoordinate)
-                nonWalkableCoordinates = list(
-                    context['cavebot'].get('holesOrStairs', [])
-                )
-                nonWalkableCoordinates.extend(
-                    getActiveTransientBlockedCoordinates(context)
-                )
-                context['cavebot']['closestCreature'] = (
-                    getClosestReachableCreature(
-                        attackableMonsters,
-                        radarCoordinate,
-                        nonWalkableCoordinates=nonWalkableCoordinates,
-                    )
-                )
-            else:
-                closestCreatureCoordinate = (
-                    radarCoordinate
-                    if radarCoordinate is not None
-                    else VISUAL_TARGETING_FALLBACK_COORDINATE
-                )
-                context['cavebot']['closestCreature'] = getClosestCreature(
-                    attackableMonsters,
-                    closestCreatureCoordinate,
-                )
+            # Código original:
+            # context['cavebot']['closestCreature'] = getClosestCreature(
+            #     context['gameWindow']['monsters'], context['radar']['coordinate'])
+            # Adaptação Linux: preserva os filtros configurados e permite apenas
+            # seleção visual quando a coordenada do Radar estiver indisponível.
+            closestCreatureCoordinate = (
+                radarCoordinate
+                if radarCoordinate is not None
+                else VISUAL_TARGETING_FALLBACK_COORDINATE
+            )
+            context['cavebot']['closestCreature'] = getClosestCreature(
+                attackableMonsters,
+                closestCreatureCoordinate,
+            )
 
         currentTask = context['tasksOrchestrator'].getCurrentTask(context)
         if currentTask is not None and currentTask.name == 'selectChatTab':
@@ -477,166 +453,46 @@ class PyTibiaThread:
             )
             return context
 
-        # Código original:
-        # a fila `corpsesToLoot` criava `LootCorpseTask`, que executava nove
-        # Shift+RightClick. O cliente atual usa uma única operação de área.
 
-        # Código Linux anterior (Marco 8.5):
-        # hasCreaturesToAttackAfterCheck = (
-        #     targetingEnabled
-        #     and context['cavebot']['closestCreature'] is not None
-        #     and hasCreaturesToAttack(context)
-        # )
-        # if hasCreaturesToAttackAfterCheck:
-        #     context['way'] = 'targeting'
-        #     if shouldAskForTargetingTasks(context):
-        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
-        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
-        #             currentRootTask.name == 'attackClosestCreature')
-        #         if not isTryingToAttackClosestCreature:
-        #             context = resolveTargetingTasks(context)
 
-        # Código Linux anterior (Marco 8.7):
-        # isQuickLootPending = (
-        #     quickLootEnabled
-        #     and lootState.get('quickLootDetectionPending', False)
-        # )
-        # hasCreaturesToAttackAfterCheck = (
-        #     targetingEnabled
-        #     and context['cavebot']['closestCreature'] is not None
-        #     and hasCreaturesToAttack(context)
-        # )
-        # if isQuickLootPending and not lootState.get('quickLootReady', False):
-        #     context['way'] = 'lootPending'
-        #     currentRootTask = (
-        #         currentTask.rootTask
-        #         if currentTask is not None and currentTask.rootTask is not None
-        #         else currentTask
-        #     )
-        #     if (
-        #         currentRootTask is not None
-        #         and currentRootTask.name == 'attackClosestCreature'
-        #     ):
-        #         context['tasksOrchestrator'].setRootTask(context, None)
-        # elif hasCreaturesToAttackAfterCheck:
-        #     context['way'] = 'targeting'
-        #     if shouldAskForTargetingTasks(context):
-        #         currentRootTask = currentTask.rootTask if currentTask is not None else None
-        #         isTryingToAttackClosestCreature = currentRootTask is not None and (
-        #             currentRootTask.name == 'attackClosestCreature')
-        #         if not isTryingToAttackClosestCreature:
-        #             context = resolveTargetingTasks(context)
-
-        # Código Linux anterior:
-        # lootBlocksMovement = quickLootPending
-        lootBlocksMovement = (
-            quickLootPending
-            or isPostCombatLootDelay
-            or isQuickLootInCooldown
-        )
-        allowChase = (
-            targetingEnabled
-            and cavebotEnabled
-            and context['radar']['coordinate'] is not None
-            and not context.get('pause', False)
-            and not lootBlocksMovement
-        )
-        # Código Linux anterior:
-        # hasCreaturesToAttackAfterCheck = (
-        #     targetingEnabled
-        #     and hasCreaturesToAttack(context)
-        # )
         hasCreaturesToAttackAfterCheck = (
             targetingEnabled
             and hasAttackableCreatures
             and context['cavebot']['closestCreature'] is not None
         )
-
         if hasCreaturesToAttackAfterCheck:
-            context['way'] = 'targeting'
-            currentRootTask = (
-                currentTask.rootTask
-                if currentTask is not None and currentTask.rootTask is not None
-                else currentTask
-            )
-            hasAttackRootWithDifferentChaseMode = (
-                currentRootTask is not None
-                and currentRootTask.name == 'attackClosestCreature'
-                and getattr(currentRootTask, 'allowChase', False) != allowChase
-            )
-            if (
-                hasAttackRootWithDifferentChaseMode
-                or shouldAskForTargetingTasks(context)
-            ):
-                hasMatchingAttackRoot = (
-                    currentRootTask is not None
-                    and currentRootTask.name == 'attackClosestCreature'
-                    and getattr(currentRootTask, 'allowChase', False) == allowChase
-                )
-                if not hasMatchingAttackRoot:
-                    if (
-                        hasAttackRootWithDifferentChaseMode
-                        and lootBlocksMovement
-                    ):
-                        printLootDiagnostic(
-                            'chase_disabled',
-                            context,
-                            adjacentMonster=adjacentMonsterExists,
-                        )
-                    context = resolveTargetingTasks(
-                        context,
-                        allowChase=allowChase,
-                    )
-        else:
-            targetIsCurrentlyUnreachable = (
-                targetingEnabled
-                and cavebotEnabled
-                and context['radar']['coordinate'] is not None
-                and hasAttackableCreatures
-                and context['cavebot']['closestCreature'] is None
-            )
-            if (
-                targetIsCurrentlyUnreachable
-                and currentRootTask is not None
-                and currentRootTask.name == 'attackClosestCreature'
-            ):
-                printLootDiagnostic(
-                    'target_unreachable',
-                    context,
-                    reason='no-adjacent-path',
-                )
-                context['tasksOrchestrator'].setRootTask(context, None)
-            if lootBlocksMovement:
-                context['way'] = (
-                    'lootPending'
-                    if quickLootPending
-                    else 'lootStabilizing'
-                )
+            context['way'] = 'cavebot'
+            if shouldAskForCavebotTasks(context):
                 currentRootTask = (
                     currentTask.rootTask
-                    if currentTask is not None and currentTask.rootTask is not None
-                    else currentTask
+                    if currentTask is not None
+                    else None
                 )
-                if currentRootTask is not None:
-                    printLootDiagnostic(
-                        'movement_root_cleared',
-                        context,
-                        adjacentMonster=adjacentMonsterExists,
-                    )
-                    context['tasksOrchestrator'].setRootTask(context, None)
-            else:
-                context['way'] = 'waypoint' if cavebotEnabled else None
-                currentTask = context['tasksOrchestrator'].getCurrentTask(context)
-                currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
-                waypoints = context['cavebot']['waypoints']['items']
-                if (
-                    cavebotEnabled
-                    and currentTask is None
-                    and currentWaypointIndex is not None
-                    and 0 <= currentWaypointIndex < len(waypoints)
-                ):
-                    context['tasksOrchestrator'].setRootTask(
-                        context, resolveTasksByWaypoint(waypoints[currentWaypointIndex]))
+                isTryingToAttackClosestCreature = (
+                    currentRootTask is not None
+                    and currentRootTask.name == 'attackClosestCreature'
+                )
+                if not isTryingToAttackClosestCreature:
+                    # Código original:
+                    # context = resolveCavebotTasks(context)
+                    # O resolver muta e devolve o mesmo contexto; não reatribuir
+                    # evita ampliar incorretamente o tipo por sua anotação original.
+                    resolveCavebotTasks(context)
+        else:
+            context['way'] = 'waypoint' if cavebotEnabled else None
+            currentTask = context['tasksOrchestrator'].getCurrentTask(context)
+            currentWaypointIndex = context['cavebot']['waypoints']['currentIndex']
+            waypoints = context['cavebot']['waypoints']['items']
+            if (
+                cavebotEnabled
+                and currentTask is None
+                and currentWaypointIndex is not None
+                and 0 <= currentWaypointIndex < len(waypoints)
+            ):
+                context['tasksOrchestrator'].setRootTask(
+                    context,
+                    resolveTasksByWaypoint(waypoints[currentWaypointIndex]),
+                )
 
         context['gameWindow']['previousMonsters'] = context['gameWindow']['monsters']
         return context

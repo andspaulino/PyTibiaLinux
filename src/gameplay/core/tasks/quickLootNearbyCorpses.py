@@ -1,4 +1,4 @@
-from time import time
+from time import sleep, time
 
 import src.utils.keyboard as utilsKeyboard
 # Código Linux anterior:
@@ -74,7 +74,33 @@ class QuickLootNearbyCorpsesTask(BaseTask):
             context,
             hotkey=hotkey,
         )
-        utilsKeyboard.hotkey(*keys)
+        # Código Linux anterior:
+        # utilsKeyboard.hotkey(*keys)
+        # Com pyautogui.PAUSE=0, a combinação era pressionada e liberada quase
+        # instantaneamente; o log registrava o envio, mas o cliente podia não
+        # reconhecer o Quick Loot. Continua sendo um único pressionamento da
+        # tecla final, mantendo os modificadores brevemente.
+        modifiers = keys[:-1]
+        finalKey = keys[-1]
+        pressedModifiers = []
+        finalKeyIsPressed = False
+        try:
+            for modifier in modifiers:
+                utilsKeyboard.keyDown(modifier)
+                pressedModifiers.append(modifier)
+            if pressedModifiers:
+                sleep(0.05)
+            # Código Linux anterior:
+            # utilsKeyboard.press(finalKey)
+            # Com PAUSE=0, até uma tecla única tinha key-down/key-up imediato.
+            utilsKeyboard.keyDown(finalKey)
+            finalKeyIsPressed = True
+            sleep(0.05)
+        finally:
+            if finalKeyIsPressed:
+                utilsKeyboard.keyUp(finalKey)
+            for modifier in reversed(pressedModifiers):
+                utilsKeyboard.keyUp(modifier)
 
         # Código Linux anterior:
         # eram enviados dois pulsos, separados por 0,15 s, usando lootAttempts

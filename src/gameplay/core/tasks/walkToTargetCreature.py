@@ -1,18 +1,12 @@
-from time import time
-
 import numpy as np
 from scipy.spatial import distance
 from src.gameplay.typings import Context
 import src.gameplay.utils as gameplayUtils
-from ...lootDiagnostics import printLootDiagnostic
 from ...typings import Context
 from ...utils import releaseKeys
 from ..waypoint import generateFloorWalkpoints
 from .common.vector import VectorTask
 from .walk import WalkTask
-
-
-PATH_RETRY_INTERVAL = 0.25
 
 
 class WalkToTargetCreatureTask(VectorTask):
@@ -21,103 +15,28 @@ class WalkToTargetCreatureTask(VectorTask):
         self.name = 'walkToTargetCreature'
         self.manuallyTerminable = True
         self.targetCreatureCoordinateSinceLastRestart = None
-        self.nextPathRetryAt = 0
 
     def onBeforeStart(self, context: Context) -> Context:
         self.calculatePathToTargetCreature(context)
         return context
 
     def onBeforeRestart(self, context: Context) -> Context:
-        targetCreature = context['cavebot'].get('targetCreature') or {}
-        printLootDiagnostic(
-            'chase_restart',
-            context,
-            previousTargetCoordinate=self.targetCreatureCoordinateSinceLastRestart,
-            nextTargetCoordinate=targetCreature.get('coordinate'),
-        )
         context = releaseKeys(context)
         return self.onBeforeStart(context)
 
     def onInterrupt(self, context: Context) -> Context:
-        printLootDiagnostic('chase_interrupt', context)
         return releaseKeys(context)
 
     def onComplete(self, context: Context) -> Context:
-        printLootDiagnostic('chase_complete', context)
         return releaseKeys(context)
 
-    # Código original Windows:
-    # def shouldRestart(self, context: Context) -> bool:
-    #     if len(self.tasks) == 0:
-    #         return True
-    #     if context['cavebot']['targetCreature'] is None:
-    #         return True
-    #     return not gameplayUtils.coordinatesAreEqual(context['cavebot']['targetCreature']['coordinate'], self.targetCreatureCoordinateSinceLastRestart)
-
-    # Código Linux anterior:
-    # def shouldRestart(self, context: Context) -> bool:
-    #     if len(self.tasks) == 0:
-    #         return True
-    #     if context['cavebot']['targetCreature'] is None:
-    #         return True
-    #     if self.targetCreatureCoordinateSinceLastRestart is None:
-    #         return True
-    #     targetCoord = context['cavebot']['targetCreature']['coordinate']
-    #     if targetCoord[2] != self.targetCreatureCoordinateSinceLastRestart[2]:
-    #         return True
-    #     distShift = distance.cdist(
-    #         [targetCoord],
-    #         [self.targetCreatureCoordinateSinceLastRestart],
-    #     ).flatten()[0]
-    #     return bool(distShift > 2)
-
-    # Adaptação Linux: preserva os passos durante perda visual transitória do
-    # marcador de ataque, evita restart quando o alvo já está adjacente e
-    # limita tentativas sem caminho para não liberar teclas a cada frame.
+    # TODO: if there are no more creatures, it should only recalculate when it gets close to the creature to avoid recalculating each SQM move
     def shouldRestart(self, context: Context) -> bool:
-        targetCreature = context['cavebot'].get('targetCreature')
-        if targetCreature is None:
-            return False
-        targetCoord = targetCreature.get('coordinate')
-        if targetCoord is None:
-            return False
-        if self.targetCreatureCoordinateSinceLastRestart is None:
+        if len(self.tasks) == 0:
             return True
-        if targetCoord[2] != self.targetCreatureCoordinateSinceLastRestart[2]:
+        if context['cavebot']['targetCreature'] is None:
             return True
-        # Código Linux anterior:
-        # distShift = distance.cdist(
-        #     [targetCoord],
-        #     [self.targetCreatureCoordinateSinceLastRestart],
-        # ).flatten()[0]
-        # if distShift > 2:
-        #     return True
-        # Em uma grade, delta (1, 2) ainda representa no máximo dois SQMs por
-        # eixo. A distância euclidiana 2,236 reiniciava a perseguição sem necessidade.
-        gridShift = max(
-            abs(
-                targetCoord[0]
-                - self.targetCreatureCoordinateSinceLastRestart[0]
-            ),
-            abs(
-                targetCoord[1]
-                - self.targetCreatureCoordinateSinceLastRestart[1]
-            ),
-        )
-        if gridShift > 2:
-            return True
-        if len(self.tasks) > 0:
-            return False
-        playerCoordinate = context.get('radar', {}).get('coordinate')
-        if playerCoordinate is None or playerCoordinate[2] != targetCoord[2]:
-            return False
-        isAdjacent = (
-            abs(playerCoordinate[0] - targetCoord[0]) <= 1
-            and abs(playerCoordinate[1] - targetCoord[1]) <= 1
-        )
-        if isAdjacent:
-            return False
-        return time() >= self.nextPathRetryAt
+        return not gameplayUtils.coordinatesAreEqual(context['cavebot']['targetCreature']['coordinate'], self.targetCreatureCoordinateSinceLastRestart)
 
     def shouldManuallyComplete(self, context: Context) -> bool:
         if context['cavebot']['isAttackingSomeCreature'] == False:
@@ -125,10 +44,13 @@ class WalkToTargetCreatureTask(VectorTask):
         return False
 
     def calculatePathToTargetCreature(self, context: Context):
-        targetCreature = context['cavebot'].get('targetCreature')
-        if targetCreature is None:
-            return
         self.tasks = []
+        if context['cavebot']['targetCreature'] is None:
+            return
+        # Adaptação defensiva Linux: a leitura do Radar pode desaparecer
+        # temporariamente; sem coordenada mundial nenhuma navegação é emitida.
+        if context['radar']['coordinate'] is None:
+            return
         nonWalkableCoordinates = context['cavebot']['holesOrStairs'].copy()
         # TODO: also, detect players
         for monster in context['gameWindow']['monsters']:
@@ -154,11 +76,5 @@ class WalkToTargetCreatureTask(VectorTask):
         for walkpoint in walkpoints:
             self.tasks.append(WalkTask(context, walkpoint).setParentTask(
                 self).setRootTask(self.rootTask))
-        self.targetCreatureCoordinateSinceLastRestart = context['cavebot'][
-            'targetCreature'
-        ]['coordinate'].copy()
-        self.nextPathRetryAt = (
-            time() + PATH_RETRY_INTERVAL
-            if len(self.tasks) == 0
-            else 0
+        self.targetCreatureCoordinateSinceLastRestart = context['cavebot']['targetCreature']['coordinate'].copy(
         )
